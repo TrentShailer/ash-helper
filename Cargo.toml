@@ -1,0 +1,19 @@
+[package]
+name = "ash-helper"
+description = "helper functions for working with ash"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Trent Shailer"]
+
+[dependencies]
+ash = { version = "0.38", default-features = false, features = [
+	"std",
+	"debug",
+] }
+thiserror = "2"
+log = "0.4"
+parking_lot = "0.12"
+
+[lints.clippy]
+missing_safety_doc = "allow"
