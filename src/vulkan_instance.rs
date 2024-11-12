@@ -3,8 +3,8 @@ use std::sync::Arc;
 use ash::vk;
 use parking_lot::Mutex;
 
-/// A trait for a structure that has the basic vulkan objects.
-pub trait BasicVulkan {
+/// A trait for a structure that has the core Vulkan objects.
+pub trait CoreVulkan {
     /// Gets a reference to the vulkan entry.
     unsafe fn vk_entry(&self) -> &ash::Entry;
 
