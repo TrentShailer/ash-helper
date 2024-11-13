@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use ash::vk;
 use parking_lot::Mutex;
 use thiserror::Error;
@@ -11,7 +9,7 @@ pub unsafe fn record_and_submit<F, Vk, const W: usize, const S: usize>(
     vk: &Vk,
     command_buffer: vk::CommandBuffer,
     fence: vk::Fence,
-    queue: Arc<Mutex<vk::Queue>>,
+    queue: &Mutex<vk::Queue>,
     wait_semaphores: [vk::SemaphoreSubmitInfo; W],
     signal_semaphores: [vk::SemaphoreSubmitInfo; S],
     f: F,
