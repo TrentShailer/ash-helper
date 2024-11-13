@@ -1,7 +1,9 @@
+mod memory_type;
 mod record_submit;
 mod shader;
 mod vulkan_instance;
 
+pub use memory_type::find_memorytype_index;
 pub use record_submit::{
     record_and_submit, semaphore_submit_info_from_array, Error as RecordSubmitError,
 };
