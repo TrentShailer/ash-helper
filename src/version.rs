@@ -1,4 +1,7 @@
-use std::cmp::{self, Ordering};
+use std::{
+    cmp::{self, Ordering},
+    fmt::Display,
+};
 
 use ash::vk;
 
@@ -54,5 +57,11 @@ impl Ord for Version {
             },
             ordering => ordering,
         }
+    }
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
     }
 }

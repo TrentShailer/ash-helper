@@ -24,9 +24,9 @@ pub trait CoreVulkan {
         queue_index: usize,
     ) -> Option<Arc<Mutex<vk::Queue>>>;
 
-    /// Tries to find the queue family indexes of the queue families that meets the requirements.
-    /// Should only return queue family indexes that have queues created on device creation.
-    unsafe fn find_queue_family_indexes(
+    /// Tries to find the queue family indicies of the queue families that meets the requirements.
+    /// Should only return queue family indicies that have queues created on device creation.
+    unsafe fn find_queue_family_indicies(
         &self,
         flags: vk::QueueFlags,
         queue_count: u32,
