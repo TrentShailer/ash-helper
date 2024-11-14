@@ -3,38 +3,47 @@ use thiserror::Error;
 
 use crate::{find_memorytype_index, CoreVulkan};
 
-/// Creates a basic buffer with bound backing memory, handles dedicated allocations when preferred or required.
+/// Creates a basic image with bound backing memory, handles dedicated allocations when preferred or required.
 ///
 /// # Requires
 /// - Vulkan 1.1+ or `VK_KHR_get_memory_requirements2` device extension.
 /// - Vulkan 1.1+ or `VK_KHR_dedicated_allocation` device extension.
-pub unsafe fn create_buffer<Vk: CoreVulkan>(
+pub unsafe fn create_image<Vk: CoreVulkan>(
     vk: &Vk,
-    size: u64,
-    usage: vk::BufferUsageFlags,
+    extent: vk::Extent2D,
+    format: vk::Format,
+    usage: vk::ImageUsageFlags,
     memory_flags: vk::MemoryPropertyFlags,
-) -> Result<(vk::Buffer, vk::DeviceMemory, vk::MemoryRequirements), Error> {
+) -> Result<(vk::Image, vk::DeviceMemory, vk::MemoryRequirements), Error> {
     let device = vk.vk_device();
 
-    // Create buffer
-    let buffer = {
-        let create_info = vk::BufferCreateInfo::default()
-            .size(size)
+    // Create image
+    let image = {
+        let image_create_info = vk::ImageCreateInfo::default()
+            .extent(extent.into())
             .usage(usage)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+            .format(format)
+            .array_layers(1)
+            .mip_levels(1)
+            .image_type(vk::ImageType::TYPE_2D)
+            .samples(vk::SampleCountFlags::TYPE_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .initial_layout(vk::ImageLayout::UNDEFINED);
+
         device
-            .create_buffer(&create_info, None)
-            .map_err(|e| Error::VulkanCall(e, "vkCreateBuffer"))?
+            .create_image(&image_create_info, None)
+            .map_err(|e| Error::VulkanCall(e, "vkCreateImage"))?
     };
 
-    // Allocate Memory
+    // Allocate memory
     let (memory, memory_requirements) = {
-        let memory_requirements_info = vk::BufferMemoryRequirementsInfo2::default().buffer(buffer);
+        let memory_requirements_info = vk::ImageMemoryRequirementsInfo2::default().image(image);
         let mut dedicated_allocation_requirements = vk::MemoryDedicatedRequirements::default();
         let mut memory_requirements =
             vk::MemoryRequirements2::default().push_next(&mut dedicated_allocation_requirements);
 
-        device.get_buffer_memory_requirements2(&memory_requirements_info, &mut memory_requirements);
+        device.get_image_memory_requirements2(&memory_requirements_info, &mut memory_requirements);
 
         let memory_requirements = memory_requirements.memory_requirements;
         let should_be_dedicated =
@@ -49,8 +58,7 @@ pub unsafe fn create_buffer<Vk: CoreVulkan>(
 
         // Handle allocation or dedicated allocation
         let memory = if should_be_dedicated {
-            let mut dedicated_allocation =
-                vk::MemoryDedicatedAllocateInfo::default().buffer(buffer);
+            let mut dedicated_allocation = vk::MemoryDedicatedAllocateInfo::default().image(image);
             let allocate_info = allocate_info.push_next(&mut dedicated_allocation);
             device.allocate_memory(&allocate_info, None)
         } else {
@@ -61,12 +69,12 @@ pub unsafe fn create_buffer<Vk: CoreVulkan>(
         (memory, memory_requirements)
     };
 
-    // bind buffer and memory
+    // bind memory to image
     device
-        .bind_buffer_memory(buffer, memory, 0)
-        .map_err(|e| Error::VulkanCall(e, "vkBindBufferMemory"))?;
+        .bind_image_memory(image, memory, 0)
+        .map_err(|e| Error::VulkanCall(e, "vkBindImageMemory"))?;
 
-    Ok((buffer, memory, memory_requirements))
+    Ok((image, memory, memory_requirements))
 }
 
 #[derive(Debug, Error)]
