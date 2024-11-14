@@ -10,7 +10,7 @@ mod vulkan_instance;
 pub use debug_utils::register_debug_utils;
 pub use extension_details::ExtensionDetails;
 pub use memory_type::find_memorytype_index;
-pub use physical_device::PhysicalDevice;
+pub use physical_device::{Error as PhysicalDeviceError, PhysicalDevice};
 pub use record_submit::{
     record_and_submit, semaphore_submit_info_from_array, Error as RecordSubmitError,
 };
