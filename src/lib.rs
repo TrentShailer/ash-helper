@@ -1,3 +1,4 @@
+mod buffer;
 mod debug_utils;
 mod extension_details;
 mod memory_type;
@@ -7,6 +8,7 @@ mod shader;
 mod version;
 mod vulkan_instance;
 
+pub use buffer::{create_buffer, Error as CreateBufferError};
 pub use debug_utils::register_debug_utils;
 pub use extension_details::ExtensionDetails;
 pub use memory_type::find_memorytype_index;
