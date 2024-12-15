@@ -3,7 +3,8 @@ use std::{borrow::Cow, ffi::CStr};
 use ash::{ext, prelude::VkResult, vk};
 use log::{debug, error, info, warn};
 
-/// Registers Vulkan's debug utils and messenger to receive [`log`] messages from any Vulkan debug calls.
+/// Registers Vulkan's debug utils and messenger to receive [`log`] messages from any Vulkan debug 
+/// calls.
 ///
 /// # Requires
 /// - Instance extension `VK_EXT_debug_utils`.

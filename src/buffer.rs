@@ -3,7 +3,8 @@ use thiserror::Error;
 
 use crate::{find_memorytype_index, CoreVulkan};
 
-/// Creates a basic buffer with bound backing memory, handles dedicated allocations when preferred or required.
+/// Creates a basic buffer with bound backing memory, handles dedicated allocations when preferred 
+/// or required.
 ///
 /// # Requires
 /// - Vulkan 1.1+ or `VK_KHR_get_memory_requirements2` device extension.
