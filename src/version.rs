@@ -26,6 +26,7 @@ impl Version {
     pub const V1_1: Version = Version::new(1, 1, 0);
     pub const V1_2: Version = Version::new(1, 2, 0);
     pub const V1_3: Version = Version::new(1, 3, 0);
+    pub const V1_4: Version = Version::new(1, 4, 0);
 
     /// Converts a Vulkan version to a Version.
     pub fn from_vulkan_version(version: u32) -> Self {
@@ -39,6 +40,14 @@ impl Version {
     /// Converts a Version to a Vulkan version.
     pub fn as_vulkan_version(&self) -> u32 {
         vk::make_api_version(0, self.major, self.minor, self.patch)
+    }
+
+    /// Retreives the cargo package version from the environment `CARGO_PKG_VERSION_*`.
+    pub fn cargo_package_version() -> Self {
+        let major: u32 = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap();
+        let minor: u32 = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap();
+        let patch: u32 = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap();
+        Version::new(major, minor, patch)
     }
 }
 

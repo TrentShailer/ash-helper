@@ -15,5 +15,13 @@ thiserror = "2"
 log = "0.4"
 parking_lot = "0.12"
 
+[dev-dependencies]
+ash = { version = "0.38", default-features = false, features = [
+	"std",
+	"debug",
+	"loaded",
+] }
+fern = "0.7"
+
 [lints.clippy]
 missing_safety_doc = "allow"
