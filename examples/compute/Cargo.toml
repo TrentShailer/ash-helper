@@ -1,0 +1,27 @@
+[package]
+name = "compute"
+description = "Compute example for Ash Helper."
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Trent Shailer"]
+publish = false
+
+[dependencies]
+ash = { version = "0.38", default-features = false, features = [
+    "linked",
+    "std",
+    "debug",
+] }
+vp-ash = { git = "https://github.com/trentshailer/vulkan-profiles-ash", features = [
+    "debug",
+    "std",
+] }
+ash-helper = { path = "../../" }
+fern = "0.7"
+rayon = "1.10"
+rand_distr = "0.4"
+rand = "0.8"
+
+[profile.release]
+debug = true

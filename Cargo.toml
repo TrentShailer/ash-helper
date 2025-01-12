@@ -8,20 +8,15 @@ authors = ["Trent Shailer"]
 
 [dependencies]
 ash = { version = "0.38", default-features = false, features = [
-	"std",
-	"debug",
+    "std",
+    "debug",
 ] }
-thiserror = "2"
-log = "0.4"
-parking_lot = "0.12"
+thiserror = { version = "2", default-features = false }
+log = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 ash = { version = "0.38", default-features = false, features = [
-	"std",
-	"debug",
-	"loaded",
+    "std",
+    "loaded",
+    "debug",
 ] }
-fern = "0.7"
-
-[lints.clippy]
-missing_safety_doc = "allow"

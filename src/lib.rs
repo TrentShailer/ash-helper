@@ -1,30 +1,40 @@
+//! Various helper functions, wrappers, and traits for working with Vulkan through `ash`.
+
+#![warn(
+    clippy::alloc_instead_of_core,
+    clippy::use_self,
+    clippy::std_instead_of_alloc,
+    clippy::std_instead_of_core,
+    deprecated_in_future,
+    rust_2018_idioms,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_qualifications,
+    missing_docs
+)]
+#![allow(
+    clippy::missing_safety_doc,
+    clippy::missing_transmute_annotations,
+    clippy::too_many_arguments,
+    clippy::upper_case_acronyms
+)]
+
+extern crate alloc;
+
+pub use buffer::{allocate_buffer, Error as AllocateBufferError};
+pub use commands::*;
+pub use debug_utils::*;
+pub use image::{allocate_image, Error as AllocateImageError};
+pub use memory::{allocate_buffer_memory, allocate_image_memory, Error as AllocateMemoryError};
+pub use result::*;
+pub use shader::*;
+pub use vulkan_context::*;
+
 mod buffer;
+mod commands;
 mod debug_utils;
 mod image;
-mod memory_type;
-// mod physical_device;
-mod queue_family;
-mod record_submit;
-mod requirements;
+mod memory;
+mod result;
 mod shader;
-mod version;
-mod vulkan_instance;
-
-pub use buffer::{Buffer, Error as CreateBufferError};
-pub use debug_utils::DebugUtils;
-pub use image::{create_image, Error as CreateImageError};
-pub use memory_type::find_memorytype_index;
-// pub use physical_device::{Error as PhysicalDeviceError, PhysicalDevice};
-pub use queue_family::QueueFamily;
-pub use record_submit::CommandBuffer;
-pub use record_submit::{
-    record_and_submit, semaphore_submit_info_from_array, Error as RecordSubmitError,
-};
-pub use requirements::{
-    DeviceRequirement, EntryRequirement, QueueFamilyRequirement, QueueFamilyRequirements,
-    RequiredExtension, RequiredFeatures, RequiredFeatures2, RequirementDescription,
-    ValidationError, ValidationOutcome, ValidationResult,
-};
-pub use shader::{create_shader_module_from_spv, Error as CreateShaderModuleError};
-pub use version::Version;
-pub use vulkan_instance::CoreVulkan;
+mod vulkan_context;

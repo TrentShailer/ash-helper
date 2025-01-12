@@ -1,0 +1,83 @@
+{
+    "$schema": "https://schema.khronos.org/vulkan/profiles-0.8.2-304.json#",
+    "capabilities": {
+        "baseline": {
+            "features": {
+                "VkPhysicalDeviceTimelineSemaphoreFeatures": {
+                    "timelineSemaphore": true
+                }
+            },
+            "properties": {
+                "VkPhysicalDeviceProperties": {
+                    "limits": {
+                        "maxStorageBufferRange": 142606336
+                    }
+                },
+                "VkPhysicalDeviceMaintenance3Properties": {
+                    "maxMemoryAllocationSize": 142606336
+                },
+                "VkPhysicalDeviceSubgroupProperties": {
+                    "subgroupSize": 4,
+                    "supportedStages": [
+                        "VK_SHADER_STAGE_COMPUTE_BIT"
+                    ],
+                    "supportedOperations": [
+                        "VK_SUBGROUP_FEATURE_BALLOT_BIT",
+                        "VK_SUBGROUP_FEATURE_ARITHMETIC_BIT"
+                    ]
+                }
+            }
+        },
+        "debug": {
+            "extensions": {
+                "VK_EXT_debug_utils": 1
+            }
+        }
+    },
+    "profiles": {
+        "VP_EXAMPLE_compute": {
+            "version": 1,
+            "api-version": "1.2.198",
+            "label": "Compute Example Profile",
+            "description": "Profile for running the compute example.",
+            "capabilities": [
+                "baseline"
+            ],
+            "contributors": {
+                "Trent Shailer": {
+                    "company": "N/A"
+                }
+            },
+            "history": [
+                {
+                    "revision": 1,
+                    "date": "2025-01-12",
+                    "author": "Trent Shailer",
+                    "comment": "Initial revision"
+                }
+            ]
+        },
+        "VP_EXAMPLE_compute_debug": {
+            "version": 1,
+            "api-version": "1.0.0",
+            "label": "Debug Profile",
+            "description": "Profile enabling debug support.",
+            "capabilities": [
+                "debug"
+            ],
+            "contributors": {
+                "Trent Shailer": {
+                    "company": "N/A"
+                }
+            },
+            "history": [
+                {
+                    "revision": 1,
+                    "date": "2025-01-12",
+                    "author": "Trent Shailer",
+                    "comment": "Initial revision"
+                }
+            ]
+        }
+    }
+}
