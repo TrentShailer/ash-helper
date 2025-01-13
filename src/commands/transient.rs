@@ -63,8 +63,7 @@ where
         let submit_info =
             vk::SubmitInfo::default().command_buffers(slice::from_ref(&command_buffer));
 
-        let queue = vk.queue(queue_purpose).unwrap();
-        let queue = queue.lock();
+        let queue = vk.queue(queue_purpose).lock();
         queue_try_begin_label(vk, *queue, label);
 
         unsafe {

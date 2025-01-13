@@ -32,6 +32,6 @@ pub trait VulkanContext {
     /// Returns the queue family index.
     fn queue_family_index(&self) -> u32;
 
-    /// Returns the queue at the index if it exists with the given purpose.
-    unsafe fn queue(&self, purpose: Self::QueuePurpose) -> Option<&Mutex<vk::Queue>>;
+    /// Returns the queue for the given purpose.
+    unsafe fn queue(&self, purpose: Self::QueuePurpose) -> &Mutex<vk::Queue>;
 }

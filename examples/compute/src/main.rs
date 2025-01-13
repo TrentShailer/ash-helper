@@ -65,7 +65,7 @@ fn main() {
         vk
     };
 
-    unsafe { try_name(&vk, *vk.queue(()).unwrap().lock(), "Main Queue") };
+    unsafe { try_name(&vk, *vk.queue(()).lock(), "Main Queue") };
 
     // Create Vulkan Objects
     let start = Instant::now();
@@ -484,7 +484,7 @@ fn main() {
                 .push_next(&mut semaphore_submit_info);
 
             unsafe {
-                let queue = vk.queue(()).unwrap().lock();
+                let queue = vk.queue(()).lock();
                 vk.device()
                     .queue_submit(*queue, slice::from_ref(&submit_info), vk::Fence::null())
                     .unwrap();
@@ -568,7 +568,7 @@ fn main() {
                 .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::TRANSFER));
 
             unsafe {
-                let queue = vk.queue(()).unwrap().lock();
+                let queue = vk.queue(()).lock();
                 queue_try_begin_label(&vk, *queue, "Copy to CPU");
 
                 vk.device()

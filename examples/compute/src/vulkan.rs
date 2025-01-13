@@ -242,8 +242,8 @@ impl VulkanContext for Vulkan {
     }
 
     #[inline]
-    unsafe fn queue(&self, _purpose: Self::QueuePurpose) -> Option<&Mutex<vk::Queue>> {
-        Some(&self.queue)
+    unsafe fn queue(&self, _purpose: Self::QueuePurpose) -> &Mutex<vk::Queue> {
+        &self.queue
     }
 }
 
