@@ -47,8 +47,4 @@ pub enum Error {
     /// No suitable memory type was available.
     #[error("No suitable memory type was available for the allocation.")]
     NoSuitableMemoryType,
-
-    /// No Queue Family Index exists with the purpose.
-    #[error("No queue family index exists with the purpose")]
-    NoQueueFamilyIndex,
 }
