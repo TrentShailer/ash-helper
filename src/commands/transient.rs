@@ -3,7 +3,7 @@ use core::slice;
 use ash::vk;
 
 use crate::{
-    debug_utils::{cmd_try_begin_label, queue_try_begin_label, queue_try_end_label, try_name},
+    debug_utils::{queue_try_begin_label, queue_try_end_label, try_name},
     LabelledVkResult, VkError, VulkanContext,
 };
 
@@ -19,7 +19,7 @@ pub unsafe fn onetime_command<Vk, Fn>(
 ) -> LabelledVkResult<()>
 where
     Vk: VulkanContext,
-    Fn: FnOnce(vk::CommandBuffer, &ash::Device),
+    Fn: FnOnce(&ash::Device, vk::CommandBuffer),
 {
     // Allocate command buffer
     let command_buffer = {
@@ -32,24 +32,16 @@ where
             .map_err(|e| VkError::new(e, "vkAllocateCommandBuffers"))?[0]
     };
 
-    // Begin recording
+    // Recording
     {
         let begin_info = vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        vk.device()
+            .begin_command_buffer(command_buffer, &begin_info)
+            .map_err(|e| VkError::new(e, "vkBeginCommandBuffer"))?;
 
-        unsafe {
-            vk.device()
-                .begin_command_buffer(command_buffer, &begin_info)
-        }
-        .map_err(|e| VkError::new(e, "vkBeginCommandBuffer"))?;
+        record_callback(vk.device(), command_buffer);
 
-        cmd_try_begin_label(vk, command_buffer, label);
-    }
-
-    record_callback(command_buffer, vk.device());
-
-    // End recording
-    {
         unsafe { vk.device().end_command_buffer(command_buffer) }
             .map_err(|e| VkError::new(e, "vkEndCommandBuffer"))?;
     }
@@ -73,11 +65,13 @@ where
 
         let queue = vk.queue(queue_purpose).unwrap();
         queue_try_begin_label(vk, queue, label);
+
         unsafe {
             vk.device()
                 .queue_submit(queue, slice::from_ref(&submit_info), fence)
+                .map_err(|e| VkError::new(e, "vkQueueSubmit"))?;
         }
-        .map_err(|e| VkError::new(e, "vkQueueSubmit"))?;
+
         queue_try_end_label(vk, queue);
     }
 
@@ -85,8 +79,8 @@ where
     unsafe {
         vk.device()
             .wait_for_fences(slice::from_ref(&fence), true, u64::MAX)
+            .map_err(|e| VkError::new(e, "vkWaitForFences"))?;
     }
-    .map_err(|e| VkError::new(e, "vkWaitForFences"))?;
 
     // Cleanup
     unsafe {

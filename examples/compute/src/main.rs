@@ -4,8 +4,10 @@ use std::time::Instant;
 use ash::{util::Align, vk};
 use ash_helper::{
     allocate_buffer, cmd_try_begin_label, cmd_try_end_label, create_shader_module_from_spv,
-    onetime_command, try_name, VulkanContext,
+    onetime_command, queue_try_begin_label, queue_try_end_label, try_name, VulkanContext,
 };
+use log::info;
+use logger::setup_logger;
 use rand::Rng;
 use rand_distr::Distribution;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -24,12 +26,14 @@ struct PushConstants {
     pub input_length: u32,
 }
 
+#[inline]
 fn n_dispatches(n_values_input: u32, subgroup_size: u32) -> u32 {
     let values_processed_per_dispatch = 64 * subgroup_size;
 
     n_values_input.div_ceil(values_processed_per_dispatch)
 }
 
+#[inline]
 fn n_values_output(n_values_input: u32, subgroup_size: u32) -> u32 {
     let subgroups_per_dispatch = 64 / subgroup_size; // 16
     let values_processed_per_dispatch = 64 * subgroup_size; // 1024
@@ -40,9 +44,31 @@ fn n_values_output(n_values_input: u32, subgroup_size: u32) -> u32 {
     (number_of_dispatches * values_produced_per_dispatch as f64).ceil() as u32
 }
 
+fn log_duration(action: &str, start: Instant) {
+    info!(
+        "{} in {:.3}ms",
+        action,
+        start.elapsed().as_secs_f32() * 1000.0
+    )
+}
+
 fn main() {
-    let vk = Vulkan::new(TRY_DEBUG);
+    setup_logger().unwrap();
+
+    let vk = {
+        let start = Instant::now();
+
+        let vk = Vulkan::new(TRY_DEBUG);
+
+        log_duration("Initialised Vulkan", start);
+
+        vk
+    };
+
     unsafe { try_name(&vk, vk.queue(()).unwrap(), "Main Queue") };
+
+    // Create Vulkan Objects
+    let start = Instant::now();
 
     // Create transient command pool
     let transient_command_pool = {
@@ -160,8 +186,8 @@ fn main() {
 
         let shader_module = unsafe {
             create_shader_module_from_spv(&vk, include_bytes!("../shaders/maximum_reduction.spv"))
-        }
-        .unwrap();
+                .unwrap()
+        };
 
         let pipeline = {
             let create_info = vk::ComputePipelineCreateInfo::default()
@@ -174,13 +200,14 @@ fn main() {
                 .layout(pipeline_layout);
 
             unsafe {
-                vk.device().create_compute_pipelines(
-                    vk::PipelineCache::null(),
-                    slice::from_ref(&create_info),
-                    None,
-                )
+                vk.device()
+                    .create_compute_pipelines(
+                        vk::PipelineCache::null(),
+                        slice::from_ref(&create_info),
+                        None,
+                    )
+                    .unwrap()[0]
             }
-            .unwrap()[0]
         };
 
         (pipeline_layout, shader_module, pipeline)
@@ -223,12 +250,38 @@ fn main() {
                 vk::MemoryPropertyFlags::DEVICE_LOCAL,
                 "Main",
             )
+            .unwrap()
         }
-        .unwrap()
     };
+
+    // Setup staging buffer
+    // This wastes GPU memory, as it is reused for reading the result back which takes far less
+    // memory than the copy to the GPU. However, it avoids another allocation.
+    let (staging_buffer, staging_memory, _) = {
+        let queue_family = vk.queue_family_index(()).unwrap();
+
+        let create_info = vk::BufferCreateInfo::default()
+            .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
+            .size(data_size)
+            .queue_family_indices(slice::from_ref(&queue_family));
+
+        unsafe {
+            allocate_buffer(
+                &vk,
+                &create_info,
+                vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+                "Staging",
+            )
+            .unwrap()
+        }
+    };
+
+    log_duration("Setup Vulkan Objects", start);
 
     // Create data
     let data = {
+        let start = Instant::now();
+
         let true_max_index = rand::thread_rng().gen_range(0..BUFFER_VALUES as usize);
 
         let distribution = rand_distr::Uniform::new(i32::MIN, i32::MAX); // Excludes i32::MAX
@@ -243,38 +296,22 @@ fn main() {
             })
             .collect();
 
+        log_duration("Created Data", start);
+
         data
     };
 
     // Copy data to GPU
     {
-        let buffer_bytes = data_size;
-        let queue_family = vk.queue_family_index(()).unwrap();
-
-        let (staging_buffer, staging_memory, _) = {
-            let create_info = vk::BufferCreateInfo::default()
-                .usage(vk::BufferUsageFlags::TRANSFER_SRC)
-                .size(buffer_bytes)
-                .queue_family_indices(slice::from_ref(&queue_family));
-
-            unsafe {
-                allocate_buffer(
-                    &vk,
-                    &create_info,
-                    vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-                    "Data Staging",
-                )
-            }
-            .unwrap()
-        };
+        let start = Instant::now();
 
         // Copy data to staging
         {
             let pointer = unsafe {
                 vk.device()
                     .map_memory(staging_memory, 0, data_size, vk::MemoryMapFlags::empty())
-            }
-            .unwrap();
+                    .unwrap()
+            };
 
             let mut align: Align<i32> =
                 unsafe { Align::new(pointer, align_of::<i32>() as u64, data_size) };
@@ -288,7 +325,7 @@ fn main() {
                 &vk,
                 transient_command_pool,
                 (),
-                |command_buffer, device| {
+                |device, command_buffer| {
                     let buffer_copy = vk::BufferCopy::default().size(data_size);
 
                     device.cmd_copy_buffer(
@@ -300,14 +337,14 @@ fn main() {
                 },
                 "Copy Data to GPU",
             )
+            .unwrap();
         }
-        .unwrap();
 
-        unsafe { vk.device().destroy_buffer(staging_buffer, None) };
-        unsafe { vk.device().free_memory(staging_memory, None) };
+        log_duration("Copied data to GPU", start);
     }
 
     // Update descriptor sets
+
     {
         let read_descriptor = vk::DescriptorBufferInfo::default()
             .buffer(buffer)
@@ -349,11 +386,8 @@ fn main() {
         unsafe { vk.device().update_descriptor_sets(&writes, &[]) };
     }
 
-    println!("Completed Data Init");
-
     // ----- Data Init Complete -----
-
-    let start = Instant::now();
+    let whole_time = Instant::now();
 
     let mut input_length = BUFFER_VALUES;
     let mut dispatches = n_dispatches(input_length, subgroup_size);
@@ -362,35 +396,51 @@ fn main() {
     let mut submission_index = 0;
     let mut current_wait_value = 0u64;
     let mut current_signal_value = 1u64;
+    let mut submission_count = 0;
 
     while input_length > 1 {
+        let start = Instant::now();
+
         let descriptor_set = if data_in_read {
             descriptor_sets[0]
         } else {
             descriptor_sets[1]
         };
 
+        // Wait for any work on the command buffer we want to use, to have completed.
+        'cb_guard: {
+            if COMMAND_BUFFER_COUNT as u64 > current_signal_value {
+                break 'cb_guard;
+            }
+
+            let wait_value = current_signal_value - COMMAND_BUFFER_COUNT as u64;
+            let wait_info = vk::SemaphoreWaitInfo::default()
+                .semaphores(slice::from_ref(&semaphore))
+                .values(slice::from_ref(&wait_value));
+
+            unsafe { vk.device().wait_semaphores(&wait_info, u64::MAX) }.unwrap();
+        }
+
         // Reset pool (buffer)
         let (command_pool, command_buffer) = command_objects[submission_index];
         unsafe {
             vk.device()
                 .reset_command_pool(command_pool, vk::CommandPoolResetFlags::empty())
+                .unwrap();
         }
-        .unwrap();
 
-        let begin_info = vk::CommandBufferBeginInfo::default()
-            .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        // Write commands.
         unsafe {
+            let begin_info = vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
             vk.device()
                 .begin_command_buffer(command_buffer, &begin_info)
-        }
-        .unwrap();
+                .unwrap();
 
-        unsafe {
             cmd_try_begin_label(
                 &vk,
                 command_buffer,
-                &format!("Reduction Pass {submission_index}"),
+                &format!("Reduction Pass {submission_count}"),
             );
 
             vk.device().cmd_push_constants(
@@ -416,38 +466,44 @@ fn main() {
             vk.device().cmd_dispatch(command_buffer, dispatches, 1, 1);
 
             cmd_try_end_label(&vk, command_buffer);
+
+            vk.device().end_command_buffer(command_buffer).unwrap();
         }
 
-        unsafe { vk.device().end_command_buffer(command_buffer) }.unwrap();
+        // Submit
+        {
+            let mut semaphore_submit_info = vk::TimelineSemaphoreSubmitInfo::default()
+                .wait_semaphore_values(slice::from_ref(&current_wait_value))
+                .signal_semaphore_values(slice::from_ref(&current_signal_value));
 
-        let mut semaphore_submit_info = vk::TimelineSemaphoreSubmitInfo::default()
-            .wait_semaphore_values(slice::from_ref(&current_wait_value))
-            .signal_semaphore_values(slice::from_ref(&current_signal_value));
+            let submit_info = vk::SubmitInfo::default()
+                .wait_semaphores(slice::from_ref(&semaphore))
+                .signal_semaphores(slice::from_ref(&semaphore))
+                .command_buffers(slice::from_ref(&command_buffer))
+                .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::COMPUTE_SHADER))
+                .push_next(&mut semaphore_submit_info);
 
-        let submit_info = vk::SubmitInfo::default()
-            .wait_semaphores(slice::from_ref(&semaphore))
-            .signal_semaphores(slice::from_ref(&semaphore))
-            .command_buffers(slice::from_ref(&command_buffer))
-            .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::COMPUTE_SHADER))
-            .push_next(&mut semaphore_submit_info);
-
-        unsafe {
-            vk.device().queue_submit(
-                vk.queue(()).unwrap(),
-                slice::from_ref(&submit_info),
-                vk::Fence::null(),
-            )
+            unsafe {
+                vk.device()
+                    .queue_submit(
+                        vk.queue(()).unwrap(),
+                        slice::from_ref(&submit_info),
+                        vk::Fence::null(),
+                    )
+                    .unwrap();
+            }
         }
-        .unwrap();
 
-        println!(
-            "Submission {} | Input {} | Dispatches {} | Output {} | Wait {} | Signal {}",
+        info!(
+            "Submission {} | Index {} | Input {} | Dispatches {} | Output {} | Wait {} | Signal {} | Elapsed {:.3}ms",
+            submission_count,
             submission_index,
             input_length,
             dispatches,
             output_length,
             current_wait_value,
-            current_signal_value
+            current_signal_value,
+            start.elapsed().as_secs_f32() * 1000.0
         );
 
         input_length = output_length;
@@ -455,82 +511,100 @@ fn main() {
         output_length = n_values_output(input_length, subgroup_size);
         data_in_read = !data_in_read;
         submission_index = (submission_index + 1) % COMMAND_BUFFER_COUNT as usize;
+        submission_count += 1;
 
         current_wait_value = current_signal_value;
         current_signal_value += 1;
     }
 
-    // wait for final submission
-    {
-        let wait_info = vk::SemaphoreWaitInfo::default()
-            .semaphores(slice::from_ref(&semaphore))
-            .values(slice::from_ref(&current_wait_value));
-        unsafe { vk.device().wait_semaphores(&wait_info, u64::MAX) }.unwrap();
-    }
-
-    println!("Submissions completed");
-
     // Copy result to cpu
     let maximum = {
-        let elements = 1;
-        let staging_size = size_of::<i32>() as u64 * elements;
-        let queue_family = vk.queue_family_index(()).unwrap();
+        let start = Instant::now();
 
-        let (staging_buffer, staging_memory, _) = {
-            let create_info = vk::BufferCreateInfo::default()
-                .usage(vk::BufferUsageFlags::TRANSFER_DST)
-                .size(staging_size)
-                .queue_family_indices(slice::from_ref(&queue_family));
+        // Allocate command buffer
+        let command_buffer = {
+            let allocate_info = vk::CommandBufferAllocateInfo::default()
+                .command_pool(transient_command_pool)
+                .level(vk::CommandBufferLevel::PRIMARY)
+                .command_buffer_count(1);
 
-            unsafe {
-                allocate_buffer(
-                    &vk,
-                    &create_info,
-                    vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-                    "Result Staging",
-                )
-            }
-            .unwrap()
+            unsafe { vk.device().allocate_command_buffers(&allocate_info) }.unwrap()[0]
         };
 
+        // find result buffer
+        let output_offset_bytes = if data_in_read { 0 } else { data_size };
+
+        // Recording
         unsafe {
-            onetime_command(
-                &vk,
-                transient_command_pool,
-                (),
-                |command_buffer, device| {
-                    // find result buffer
-                    let output_offset_bytes = if data_in_read { 0 } else { data_size };
+            let begin_info = vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+            vk.device()
+                .begin_command_buffer(command_buffer, &begin_info)
+                .unwrap();
 
-                    let buffer_copy = vk::BufferCopy::default()
-                        .size(staging_size)
-                        .src_offset(output_offset_bytes);
+            let buffer_copy = vk::BufferCopy::default()
+                .size(size_of::<i32>() as u64)
+                .src_offset(output_offset_bytes)
+                .dst_offset(0);
 
-                    device.cmd_copy_buffer(
-                        command_buffer,
-                        buffer,
-                        staging_buffer,
-                        slice::from_ref(&buffer_copy),
-                    );
-                },
-                "Copy Result",
-            )
+            vk.device().cmd_copy_buffer(
+                command_buffer,
+                buffer,
+                staging_buffer,
+                slice::from_ref(&buffer_copy),
+            );
+
+            vk.device().end_command_buffer(command_buffer).unwrap();
         }
-        .unwrap();
+
+        // Submit
+        {
+            let mut semaphore_submit_info = vk::TimelineSemaphoreSubmitInfo::default()
+                .wait_semaphore_values(slice::from_ref(&current_wait_value))
+                .signal_semaphore_values(slice::from_ref(&current_signal_value));
+
+            let submit_info = vk::SubmitInfo::default()
+                .command_buffers(slice::from_ref(&command_buffer))
+                .wait_semaphores(slice::from_ref(&semaphore))
+                .signal_semaphores(slice::from_ref(&semaphore))
+                .push_next(&mut semaphore_submit_info)
+                .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::TRANSFER));
+
+            unsafe {
+                let queue = vk.queue(()).unwrap();
+                queue_try_begin_label(&vk, queue, "Copy to CPU");
+
+                vk.device()
+                    .queue_submit(queue, slice::from_ref(&submit_info), vk::Fence::null())
+                    .unwrap();
+
+                queue_try_end_label(&vk, queue)
+            }
+        }
+
+        // Wait for submission to complete
+        unsafe {
+            let wait_info = vk::SemaphoreWaitInfo::default()
+                .values(slice::from_ref(&current_signal_value))
+                .semaphores(slice::from_ref(&semaphore));
+
+            vk.device().wait_semaphores(&wait_info, u64::MAX).unwrap();
+        }
 
         // Copy data to cpu
         let maximum = {
             let pointer = unsafe {
                 vk.device()
-                    .map_memory(staging_memory, 0, staging_size, vk::MemoryMapFlags::empty())
-            }
-            .unwrap();
+                    .map_memory(
+                        staging_memory,
+                        0,
+                        size_of::<i32>() as u64,
+                        vk::MemoryMapFlags::empty(),
+                    )
+                    .unwrap()
+            };
 
-            let raw_output: &[i32] =
-                unsafe { slice::from_raw_parts(pointer.cast(), elements as usize) };
-
-            // dbg!(raw_output);
-
+            let raw_output: &[i32] = unsafe { slice::from_raw_parts(pointer.cast(), 1) };
             let maximum = raw_output[0];
 
             unsafe { vk.device().unmap_memory(staging_memory) };
@@ -538,9 +612,11 @@ fn main() {
             maximum
         };
 
+        log_duration("Waited and Copied to CPU", start);
+
         unsafe {
-            vk.device().destroy_buffer(staging_buffer, None);
-            vk.device().free_memory(staging_memory, None)
+            vk.device()
+                .free_command_buffers(transient_command_pool, slice::from_ref(&command_buffer))
         };
 
         maximum
@@ -548,16 +624,20 @@ fn main() {
 
     assert_eq!(maximum, i32::MAX);
 
-    println!(
-        "GPU found max {} of {} values in {:.3}ms",
+    info!(
+        "GPU found max {} in {} values in {:.3}ms",
         maximum,
         BUFFER_VALUES,
-        start.elapsed().as_secs_f32() * 1000.0
+        whole_time.elapsed().as_secs_f32() * 1000.0
     );
 
     // Clean up
     unsafe {
+        let start = Instant::now();
         let device = vk.device();
+
+        device.destroy_buffer(staging_buffer, None);
+        device.free_memory(staging_memory, None);
 
         device.destroy_buffer(buffer, None);
         device.free_memory(memory, None);
@@ -577,5 +657,8 @@ fn main() {
         device.destroy_pipeline(pipeline, None);
 
         device.destroy_shader_module(shader_module, None);
+
+        drop(vk);
+        log_duration("Cleaned up", start);
     }
 }

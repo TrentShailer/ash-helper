@@ -221,7 +221,12 @@ static const VkStructureType featureStructTypes[] = {
 static const VkStructureType propertyStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
+};
+
+static const VkExtensionProperties deviceExtensions[] = {
+    VkExtensionProperties{ VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1 },
 };
 
 static const VpFeatureDesc featureDesc = {
@@ -264,7 +269,8 @@ static const VpStructChainerDesc chainerDesc = {
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
         VkPhysicalDeviceMaintenance3Properties physicalDeviceMaintenance3Properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES, nullptr };
-        VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceMaintenance3Properties };
+        VkPhysicalDeviceTimelineSemaphoreProperties physicalDeviceTimelineSemaphoreProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES, &physicalDeviceMaintenance3Properties };
+        VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceTimelineSemaphoreProperties };
         p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceSubgroupProperties));
         pfnCb(p, pUser);
     },
@@ -277,6 +283,10 @@ static const VpStructChainerDesc chainerDesc = {
 };
 
 namespace baseline {
+static const VkExtensionProperties deviceExtensions[] = {
+    VkExtensionProperties{ VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1 },
+};
+
 static const VpFeatureDesc featureDesc = {
     [](VkBaseOutStructure* p) { (void)p;
             switch (p->sType) {
@@ -305,11 +315,15 @@ static const VpPropertyDesc propertyDesc = {
             switch (p->sType) {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
-                    s->properties.limits.maxStorageBufferRange = 142606336;
+                    s->properties.limits.maxStorageBufferRange = 268435456;
                 } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES: {
                     VkPhysicalDeviceMaintenance3Properties* s = static_cast<VkPhysicalDeviceMaintenance3Properties*>(static_cast<void*>(p));
-                    s->maxMemoryAllocationSize = 142606336;
+                    s->maxMemoryAllocationSize = 268435456;
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES: {
+                    VkPhysicalDeviceTimelineSemaphoreProperties* s = static_cast<VkPhysicalDeviceTimelineSemaphoreProperties*>(static_cast<void*>(p));
+                    s->maxTimelineSemaphoreValueDifference = 16;
                 } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES: {
                     VkPhysicalDeviceSubgroupProperties* s = static_cast<VkPhysicalDeviceSubgroupProperties*>(static_cast<void*>(p));
@@ -325,11 +339,15 @@ static const VpPropertyDesc propertyDesc = {
             switch (p->sType) {
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR: {
                     VkPhysicalDeviceProperties2KHR* s = static_cast<VkPhysicalDeviceProperties2KHR*>(static_cast<void*>(p));
-                    ret = ret && (s->properties.limits.maxStorageBufferRange >= 142606336);
+                    ret = ret && (s->properties.limits.maxStorageBufferRange >= 268435456);
                 } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES: {
                     VkPhysicalDeviceMaintenance3Properties* s = static_cast<VkPhysicalDeviceMaintenance3Properties*>(static_cast<void*>(p));
-                    ret = ret && (s->maxMemoryAllocationSize >= 142606336);
+                    ret = ret && (s->maxMemoryAllocationSize >= 268435456);
+                } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES: {
+                    VkPhysicalDeviceTimelineSemaphoreProperties* s = static_cast<VkPhysicalDeviceTimelineSemaphoreProperties*>(static_cast<void*>(p));
+                    ret = ret && (s->maxTimelineSemaphoreValueDifference >= 16);
                 } break;
                 case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES: {
                     VkPhysicalDeviceSubgroupProperties* s = static_cast<VkPhysicalDeviceSubgroupProperties*>(static_cast<void*>(p));
@@ -352,7 +370,8 @@ static const VpStructChainerDesc chainerDesc = {
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
         VkPhysicalDeviceMaintenance3Properties physicalDeviceMaintenance3Properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES, nullptr };
-        VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceMaintenance3Properties };
+        VkPhysicalDeviceTimelineSemaphoreProperties physicalDeviceTimelineSemaphoreProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES, &physicalDeviceMaintenance3Properties };
+        VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceTimelineSemaphoreProperties };
         p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceSubgroupProperties));
         pfnCb(p, pUser);
     },
@@ -455,7 +474,7 @@ namespace VP_EXAMPLE_COMPUTE {
         {
         "MERGED",
         0, nullptr,
-        0, nullptr,
+        static_cast<uint32_t>(std::size(deviceExtensions)), deviceExtensions,
         static_cast<uint32_t>(std::size(featureStructTypes)), featureStructTypes,
             featureDesc,
         0, nullptr,
@@ -473,7 +492,7 @@ namespace VP_EXAMPLE_COMPUTE {
             {
                 "baseline",
                 0, nullptr,
-                0, nullptr,
+                static_cast<uint32_t>(std::size(baseline::deviceExtensions)), baseline::deviceExtensions,
                 static_cast<uint32_t>(std::size(featureStructTypes)), featureStructTypes,
                 baseline::featureDesc,
                 static_cast<uint32_t>(std::size(propertyStructTypes)), propertyStructTypes,

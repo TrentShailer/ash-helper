@@ -51,6 +51,7 @@ dependencies = [
  "ash",
  "ash-helper",
  "fern",
+ "log",
  "rand",
  "rand_distr",
  "rayon",

@@ -7,14 +7,20 @@
                     "timelineSemaphore": true
                 }
             },
+            "extensions": {
+                "VK_KHR_shader_non_semantic_info": 1
+            },
             "properties": {
                 "VkPhysicalDeviceProperties": {
                     "limits": {
-                        "maxStorageBufferRange": 142606336
+                        "maxStorageBufferRange": 268435456
                     }
                 },
                 "VkPhysicalDeviceMaintenance3Properties": {
-                    "maxMemoryAllocationSize": 142606336
+                    "maxMemoryAllocationSize": 268435456
+                },
+                "VkPhysicalDeviceTimelineSemaphoreProperties": {
+                    "maxTimelineSemaphoreValueDifference": 16
                 },
                 "VkPhysicalDeviceSubgroupProperties": {
                     "subgroupSize": 4,

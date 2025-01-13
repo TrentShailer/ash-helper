@@ -1,4 +1,4 @@
-use ash::vk;
+use ash::{khr, vk};
 use ash_helper::{vulkan_debug_callback, DebugUtils, VulkanContext};
 use vp_ash::vp;
 
@@ -142,12 +142,31 @@ impl Vulkan {
 
         // Create logical device.
         let device = {
+            let mut additional_extensions = vec![];
+
+            // Request portability if the device supports it.
+            {
+                let extensions =
+                    unsafe { instance.enumerate_device_extension_properties(physical_device) }
+                        .unwrap();
+
+                let supports_portability = extensions.into_iter().any(|properties| {
+                    properties.extension_name_as_c_str().unwrap_or(c"")
+                        == khr::portability_subset::NAME
+                });
+
+                if supports_portability {
+                    additional_extensions.push(khr::portability_subset::NAME.as_ptr());
+                }
+            }
+
             let queue_create_infos = [vk::DeviceQueueCreateInfo::default()
                 .queue_family_index(queue_family_index)
                 .queue_priorities(&[1.0; 1])];
 
-            let vk_create_info =
-                vk::DeviceCreateInfo::default().queue_create_infos(&queue_create_infos);
+            let vk_create_info = vk::DeviceCreateInfo::default()
+                .queue_create_infos(&queue_create_infos)
+                .enabled_extension_names(&additional_extensions);
 
             let vp_create_info = vp::DeviceCreateInfo::default()
                 .create_info(&vk_create_info)
