@@ -1,14 +1,15 @@
 use ash::{ext, vk};
+use parking_lot::Mutex;
 
 /// This trait provides standard ways to access the Vulkan Context.
 pub trait VulkanContext {
-    /// Type containing an identifier for a purpose of a queue/queue family.
+    /// Type containing an identifier for a purpose of a queue.
     ///
     /// ## Example
     /// ```
     /// pub enum QueuePurpose {
-    ///     ComputeFamily(u32),
-    ///     GraphicsFamily(u32),
+    ///     Compute,
+    ///     Graphics,
     /// }
     /// ```
     type QueuePurpose;
@@ -28,9 +29,9 @@ pub trait VulkanContext {
     /// Returns Some if this Vulkan instance wants other functions to debug.
     unsafe fn debug(&self) -> Option<&ext::debug_utils::Device>;
 
-    /// Returns the queue family index that was created for `purpose` if it exists.
-    fn queue_family_index(&self, purpose: Self::QueuePurpose) -> Option<u32>;
+    /// Returns the queue family index.
+    fn queue_family_index(&self) -> u32;
 
     /// Returns the queue at the index if it exists with the given purpose.
-    unsafe fn queue(&self, purpose: Self::QueuePurpose) -> Option<vk::Queue>;
+    unsafe fn queue(&self, purpose: Self::QueuePurpose) -> Option<&Mutex<vk::Queue>>;
 }

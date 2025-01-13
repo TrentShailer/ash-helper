@@ -64,15 +64,16 @@ where
             vk::SubmitInfo::default().command_buffers(slice::from_ref(&command_buffer));
 
         let queue = vk.queue(queue_purpose).unwrap();
-        queue_try_begin_label(vk, queue, label);
+        let queue = queue.lock();
+        queue_try_begin_label(vk, *queue, label);
 
         unsafe {
             vk.device()
-                .queue_submit(queue, slice::from_ref(&submit_info), fence)
+                .queue_submit(*queue, slice::from_ref(&submit_info), fence)
                 .map_err(|e| VkError::new(e, "vkQueueSubmit"))?;
         }
 
-        queue_try_end_label(vk, queue);
+        queue_try_end_label(vk, *queue);
     }
 
     // Wait for submission to complete

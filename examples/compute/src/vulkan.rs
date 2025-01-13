@@ -1,5 +1,6 @@
 use ash::{khr, vk};
 use ash_helper::{vulkan_debug_callback, DebugUtils, VulkanContext};
+use parking_lot::Mutex;
 use vp_ash::vp;
 
 pub struct Vulkan {
@@ -10,7 +11,7 @@ pub struct Vulkan {
     physical_device: vk::PhysicalDevice,
     device: ash::Device,
     queue_family_index: u32,
-    queue: vk::Queue,
+    queue: Mutex<vk::Queue>,
     debug_utils: Option<DebugUtils>,
 }
 
@@ -197,7 +198,7 @@ impl Vulkan {
             physical_device,
             device,
             queue_family_index,
-            queue,
+            queue: Mutex::new(queue),
             debug_utils,
         }
     }
@@ -236,13 +237,13 @@ impl VulkanContext for Vulkan {
     }
 
     #[inline]
-    fn queue_family_index(&self, _purpose: Self::QueuePurpose) -> Option<u32> {
-        Some(self.queue_family_index)
+    fn queue_family_index(&self) -> u32 {
+        self.queue_family_index
     }
 
     #[inline]
-    unsafe fn queue(&self, _purpose: Self::QueuePurpose) -> Option<vk::Queue> {
-        Some(self.queue)
+    unsafe fn queue(&self, _purpose: Self::QueuePurpose) -> Option<&Mutex<vk::Queue>> {
+        Some(&self.queue)
     }
 }
 

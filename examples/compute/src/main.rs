@@ -65,7 +65,7 @@ fn main() {
         vk
     };
 
-    unsafe { try_name(&vk, vk.queue(()).unwrap(), "Main Queue") };
+    unsafe { try_name(&vk, *vk.queue(()).unwrap().lock(), "Main Queue") };
 
     // Create Vulkan Objects
     let start = Instant::now();
@@ -73,7 +73,7 @@ fn main() {
     // Create transient command pool
     let transient_command_pool = {
         let create_info = vk::CommandPoolCreateInfo::default()
-            .queue_family_index(vk.queue_family_index(()).unwrap())
+            .queue_family_index(vk.queue_family_index())
             .flags(vk::CommandPoolCreateFlags::TRANSIENT);
         let command_pool = unsafe { vk.device().create_command_pool(&create_info, None) }.unwrap();
 
@@ -87,7 +87,7 @@ fn main() {
         (0..COMMAND_BUFFER_COUNT)
             .map(|index| {
                 let pool_create_info = vk::CommandPoolCreateInfo::default()
-                    .queue_family_index(vk.queue_family_index(()).unwrap());
+                    .queue_family_index(vk.queue_family_index());
                 let command_pool =
                     unsafe { vk.device().create_command_pool(&pool_create_info, None) }.unwrap();
 
@@ -232,7 +232,7 @@ fn main() {
         n_values_output(BUFFER_VALUES, subgroup_size) as u64 * size_of::<i32>() as u64;
     let (buffer, memory, _) = {
         let buffer_bytes = data_size + first_output_size;
-        let queue_family = vk.queue_family_index(()).unwrap();
+        let queue_family = vk.queue_family_index();
 
         let create_info = vk::BufferCreateInfo::default()
             .usage(
@@ -258,7 +258,7 @@ fn main() {
     // This wastes GPU memory, as it is reused for reading the result back which takes far less
     // memory than the copy to the GPU. However, it avoids another allocation.
     let (staging_buffer, staging_memory, _) = {
-        let queue_family = vk.queue_family_index(()).unwrap();
+        let queue_family = vk.queue_family_index();
 
         let create_info = vk::BufferCreateInfo::default()
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
@@ -484,12 +484,9 @@ fn main() {
                 .push_next(&mut semaphore_submit_info);
 
             unsafe {
+                let queue = vk.queue(()).unwrap().lock();
                 vk.device()
-                    .queue_submit(
-                        vk.queue(()).unwrap(),
-                        slice::from_ref(&submit_info),
-                        vk::Fence::null(),
-                    )
+                    .queue_submit(*queue, slice::from_ref(&submit_info), vk::Fence::null())
                     .unwrap();
             }
         }
@@ -571,14 +568,14 @@ fn main() {
                 .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::TRANSFER));
 
             unsafe {
-                let queue = vk.queue(()).unwrap();
-                queue_try_begin_label(&vk, queue, "Copy to CPU");
+                let queue = vk.queue(()).unwrap().lock();
+                queue_try_begin_label(&vk, *queue, "Copy to CPU");
 
                 vk.device()
-                    .queue_submit(queue, slice::from_ref(&submit_info), vk::Fence::null())
+                    .queue_submit(*queue, slice::from_ref(&submit_info), vk::Fence::null())
                     .unwrap();
 
-                queue_try_end_label(&vk, queue)
+                queue_try_end_label(&vk, *queue)
             }
         }
 
