@@ -28,15 +28,15 @@ struct PushConstants {
 
 #[inline]
 fn n_dispatches(n_values_input: u32, subgroup_size: u32) -> u32 {
-    let values_processed_per_dispatch = 64 * subgroup_size;
+    let values_processed_per_dispatch = 128 * subgroup_size;
 
     n_values_input.div_ceil(values_processed_per_dispatch)
 }
 
 #[inline]
 fn n_values_output(n_values_input: u32, subgroup_size: u32) -> u32 {
-    let subgroups_per_dispatch = 64 / subgroup_size; // 16
-    let values_processed_per_dispatch = 64 * subgroup_size; // 1024
+    let subgroups_per_dispatch = 128 / subgroup_size; // 16
+    let values_processed_per_dispatch = 128 * subgroup_size; // 1024
     let values_produced_per_dispatch = subgroups_per_dispatch; // 16
 
     let number_of_dispatches = n_values_input as f64 / values_processed_per_dispatch as f64;
@@ -120,53 +120,25 @@ fn main() {
         unsafe { vk.device().create_semaphore(&create_info, None) }.unwrap()
     };
 
-    // Create descriptor pool
-    let descriptor_pool = {
-        let pool_size = vk::DescriptorPoolSize::default()
-            .descriptor_count(2)
-            .ty(vk::DescriptorType::STORAGE_BUFFER);
-        let create_info = vk::DescriptorPoolCreateInfo::default()
-            .max_sets(2)
-            .pool_sizes(slice::from_ref(&pool_size));
+    // Create descriptor layout
+    let descriptor_set_layout = {
+        let bindings = [
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(0)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::COMPUTE),
+            vk::DescriptorSetLayoutBinding::default()
+                .binding(1)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::COMPUTE),
+        ];
+        let layout_info = vk::DescriptorSetLayoutCreateInfo::default()
+            .bindings(&bindings)
+            .flags(vk::DescriptorSetLayoutCreateFlags::PUSH_DESCRIPTOR_KHR);
 
-        unsafe { vk.device().create_descriptor_pool(&create_info, None) }.unwrap()
-    };
-
-    // Create descriptor sets
-    let (descriptor_set_layout, descriptor_sets) = {
-        let set_layout = {
-            let bindings = [
-                vk::DescriptorSetLayoutBinding::default()
-                    .binding(0)
-                    .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                    .descriptor_count(1)
-                    .stage_flags(vk::ShaderStageFlags::COMPUTE),
-                vk::DescriptorSetLayoutBinding::default()
-                    .binding(1)
-                    .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                    .descriptor_count(1)
-                    .stage_flags(vk::ShaderStageFlags::COMPUTE),
-            ];
-            let layout_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(&bindings);
-
-            unsafe { vk.device().create_descriptor_set_layout(&layout_info, None) }.unwrap()
-        };
-
-        let sets = {
-            let layouts = slice::from_ref(&set_layout).repeat(2);
-            let allocate_info = vk::DescriptorSetAllocateInfo::default()
-                .descriptor_pool(descriptor_pool)
-                .set_layouts(&layouts);
-
-            unsafe { vk.device().allocate_descriptor_sets(&allocate_info) }.unwrap()
-        };
-
-        unsafe {
-            try_name(&vk, sets[0], "Read-Write Set");
-            try_name(&vk, sets[1], "Write-Read Set");
-        }
-
-        (set_layout, sets)
+        unsafe { vk.device().create_descriptor_set_layout(&layout_info, None) }.unwrap()
     };
 
     // Create pipeline
@@ -343,50 +315,17 @@ fn main() {
         log_duration("Copied data to GPU", start);
     }
 
-    // Update descriptor sets
-
-    {
-        let read_descriptor = vk::DescriptorBufferInfo::default()
-            .buffer(buffer)
-            .offset(0)
-            .range(data_size);
-        let write_descriptor = vk::DescriptorBufferInfo::default()
-            .buffer(buffer)
-            .offset(data_size)
-            .range(first_output_size);
-
-        let writes = [
-            vk::WriteDescriptorSet::default()
-                .dst_set(descriptor_sets[0])
-                .dst_binding(0)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(slice::from_ref(&read_descriptor)),
-            vk::WriteDescriptorSet::default()
-                .dst_set(descriptor_sets[0])
-                .dst_binding(1)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(slice::from_ref(&write_descriptor)),
-            // inverse
-            vk::WriteDescriptorSet::default()
-                .dst_set(descriptor_sets[1])
-                .dst_binding(0)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(slice::from_ref(&write_descriptor)),
-            vk::WriteDescriptorSet::default()
-                .dst_set(descriptor_sets[1])
-                .dst_binding(1)
-                .descriptor_count(1)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(slice::from_ref(&read_descriptor)),
-        ];
-
-        unsafe { vk.device().update_descriptor_sets(&writes, &[]) };
-    }
-
     // ----- Data Init Complete -----
+    let read_descriptor = vk::DescriptorBufferInfo::default()
+        .buffer(buffer)
+        .offset(0)
+        .range(data_size);
+
+    let write_descriptor = vk::DescriptorBufferInfo::default()
+        .buffer(buffer)
+        .offset(data_size)
+        .range(first_output_size);
+
     let whole_time = Instant::now();
 
     let mut input_length = BUFFER_VALUES;
@@ -400,12 +339,6 @@ fn main() {
 
     while input_length > 1 {
         let start = Instant::now();
-
-        let descriptor_set = if data_in_read {
-            descriptor_sets[0]
-        } else {
-            descriptor_sets[1]
-        };
 
         // Wait for any work on the command buffer we want to use, to have completed.
         'cb_guard: {
@@ -451,14 +384,36 @@ fn main() {
                 &input_length.to_ne_bytes(),
             );
 
-            vk.device().cmd_bind_descriptor_sets(
-                command_buffer,
-                vk::PipelineBindPoint::COMPUTE,
-                pipeline_layout,
-                0,
-                slice::from_ref(&descriptor_set),
-                &[],
-            );
+            // Setup descriptor writes
+            {
+                let read_binding = if data_in_read { 0 } else { 1 };
+                let write_binding = if data_in_read { 1 } else { 0 };
+
+                let descriptor_writes = [
+                    // Read buffer
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(vk::DescriptorSet::null())
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                        .dst_binding(read_binding)
+                        .buffer_info(slice::from_ref(&read_descriptor)),
+                    // Write buffer
+                    vk::WriteDescriptorSet::default()
+                        .dst_set(vk::DescriptorSet::null())
+                        .descriptor_count(1)
+                        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                        .dst_binding(write_binding)
+                        .buffer_info(slice::from_ref(&write_descriptor)),
+                ];
+
+                vk.push_descriptor_device().cmd_push_descriptor_set(
+                    command_buffer,
+                    vk::PipelineBindPoint::COMPUTE,
+                    pipeline_layout,
+                    0,
+                    &descriptor_writes,
+                );
+            }
 
             vk.device()
                 .cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::COMPUTE, pipeline);
@@ -648,7 +603,6 @@ fn main() {
         device.destroy_semaphore(semaphore, None);
 
         device.destroy_descriptor_set_layout(descriptor_set_layout, None);
-        device.destroy_descriptor_pool(descriptor_pool, None);
 
         device.destroy_pipeline_layout(pipeline_layout, None);
         device.destroy_pipeline(pipeline, None);

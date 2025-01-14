@@ -13,6 +13,7 @@ pub struct Vulkan {
     queue_family_index: u32,
     queue: Mutex<vk::Queue>,
     debug_utils: Option<DebugUtils>,
+    push_descriptor_device: khr::push_descriptor::Device,
 }
 
 impl Vulkan {
@@ -180,6 +181,8 @@ impl Vulkan {
         // Retrieve the queue.
         let queue = unsafe { device.get_device_queue(queue_family_index, 0) };
 
+        let push_descriptor_device = khr::push_descriptor::Device::new(&instance, &device);
+
         // Create debug utils if we should debug
         let debug_utils = if should_debug {
             let debug_utils =
@@ -200,7 +203,13 @@ impl Vulkan {
             queue_family_index,
             queue: Mutex::new(queue),
             debug_utils,
+            push_descriptor_device,
         }
+    }
+
+    #[inline]
+    pub unsafe fn push_descriptor_device(&self) -> &khr::push_descriptor::Device {
+        &self.push_descriptor_device
     }
 }
 

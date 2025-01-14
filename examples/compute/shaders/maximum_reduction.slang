@@ -1,4 +1,5 @@
 // slangc -g2 -emit-spirv-directly -target spirv -profile spirv_1_4  ./examples/shaders/maximum_reduction.slang -o ./examples/shaders/maximum_reduction.spv
+// slangc -g2 -emit-spirv-directly -target spirv -profile spirv_1_4  ./shaders/maximum_reduction.slang -o ./shaders/maximum_reduction.spv
 
 struct BufferSet
 {
@@ -17,33 +18,49 @@ ConstantBuffer<PushConstants> push_constants; // std140 alignment
 
 static const int OUT_OF_BOUNDS = int.minValue;
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void main(
-    uint3 global_id: SV_DispatchThreadID, // 0 - (WORKGROUP_SIZE * dispatch_x)
-    uint3 group_id: SV_GroupID,           // 0 - dispatch_x
-    uint3 thread_id: SV_GroupThreadID,    // 0 - WORKGROUP_SIZE
-)
+[ForceInline]
+uint get_thread_read_index(uint group_index, uint thread_index)
 {
-    let input_length = push_constants.input_length;
+    let lane_count = WaveGetLaneCount();
+    let lane_index = WaveGetLaneIndex();
+    let warp_index = thread_index / lane_count;
+
+    let warp_count = 128 / lane_count;
+
+    let warp_stride = lane_count * lane_count;
+    let group_stride = warp_count * warp_stride;
+
+    let group_start = group_index * group_stride;
+    let warp_start = group_start + warp_stride * warp_index;
+
+    let thread_start = warp_start + lane_index;
+
+    return thread_start;
+}
+
+[shader("compute")]
+[numthreads(128, 1, 1)]
+void main(
+    uint3 global_id: SV_DispatchThreadID,
+    uint3 group_id: SV_GroupID,
+    uint3 thread_id: SV_GroupThreadID, )
+{
     let lane_count = WaveGetLaneCount();
 
-    // The number of values that is processed by each thread.
-    let thread_values = lane_count;
+    let input_length = push_constants.input_length;
 
-    // The starting index in the buffer for this global thread id.
-    let index = global_id.x * thread_values;
+    let stride = lane_count;
+    let index = get_thread_read_index(group_id.x, thread_id.x);
 
     var thread_maximum = OUT_OF_BOUNDS;
 
     for (uint i = 0; i < lane_count; i++)
     {
-        uint read_index = index + i;
+        uint read_index = index + i * stride;
 
         // Handle out of bounds using most negative value.
         let fetch_value = read_index < input_length ? buffers.read_buffer[read_index] : OUT_OF_BOUNDS;
 
-        // Note that this \/ causes a stall on global memory load from /\ ~90% of samples are on this load.
         let maximum = WaveActiveMax(fetch_value);
 
         // Store the result if this maximum is for this lane.

@@ -31,6 +31,7 @@
 #include <vulkan/vulkan.h>
 
 #if defined(VK_VERSION_1_2) && \
+    defined(VK_KHR_push_descriptor) && \
     defined(VK_KHR_shader_non_semantic_info)
 #define VP_EXAMPLE_compute 1
 #define VP_EXAMPLE_COMPUTE_NAME "VP_EXAMPLE_compute"

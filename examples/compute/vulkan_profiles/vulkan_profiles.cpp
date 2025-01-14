@@ -223,9 +223,11 @@ static const VkStructureType propertyStructTypes[] = {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR,
 };
 
 static const VkExtensionProperties deviceExtensions[] = {
+    VkExtensionProperties{ VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1 },
 };
 
@@ -271,7 +273,8 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance3Properties physicalDeviceMaintenance3Properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES, nullptr };
         VkPhysicalDeviceTimelineSemaphoreProperties physicalDeviceTimelineSemaphoreProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES, &physicalDeviceMaintenance3Properties };
         VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceTimelineSemaphoreProperties };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceSubgroupProperties));
+        VkPhysicalDevicePushDescriptorPropertiesKHR physicalDevicePushDescriptorPropertiesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR, &physicalDeviceSubgroupProperties };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDevicePushDescriptorPropertiesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
@@ -284,6 +287,7 @@ static const VpStructChainerDesc chainerDesc = {
 
 namespace baseline {
 static const VkExtensionProperties deviceExtensions[] = {
+    VkExtensionProperties{ VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME, 1 },
     VkExtensionProperties{ VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME, 1 },
 };
 
@@ -331,6 +335,10 @@ static const VpPropertyDesc propertyDesc = {
                     s->supportedOperations |= (VK_SUBGROUP_FEATURE_BALLOT_BIT | VK_SUBGROUP_FEATURE_ARITHMETIC_BIT);
                     s->supportedStages |= (VK_SHADER_STAGE_COMPUTE_BIT);
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR: {
+                    VkPhysicalDevicePushDescriptorPropertiesKHR* s = static_cast<VkPhysicalDevicePushDescriptorPropertiesKHR*>(static_cast<void*>(p));
+                    s->maxPushDescriptors = 2;
+                } break;
                 default: break;
             }
     },
@@ -356,6 +364,10 @@ static const VpPropertyDesc propertyDesc = {
                     ret = ret && (vpCheckFlags(s->supportedOperations, (VK_SUBGROUP_FEATURE_BALLOT_BIT | VK_SUBGROUP_FEATURE_ARITHMETIC_BIT)));
                     ret = ret && (vpCheckFlags(s->supportedStages, (VK_SHADER_STAGE_COMPUTE_BIT)));
                 } break;
+                case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR: {
+                    VkPhysicalDevicePushDescriptorPropertiesKHR* s = static_cast<VkPhysicalDevicePushDescriptorPropertiesKHR*>(static_cast<void*>(p));
+                    ret = ret && (s->maxPushDescriptors >= 2);
+                } break;
                 default: break;
             }
         return ret;
@@ -372,7 +384,8 @@ static const VpStructChainerDesc chainerDesc = {
         VkPhysicalDeviceMaintenance3Properties physicalDeviceMaintenance3Properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES, nullptr };
         VkPhysicalDeviceTimelineSemaphoreProperties physicalDeviceTimelineSemaphoreProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES, &physicalDeviceMaintenance3Properties };
         VkPhysicalDeviceSubgroupProperties physicalDeviceSubgroupProperties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES, &physicalDeviceTimelineSemaphoreProperties };
-        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDeviceSubgroupProperties));
+        VkPhysicalDevicePushDescriptorPropertiesKHR physicalDevicePushDescriptorPropertiesKHR{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PUSH_DESCRIPTOR_PROPERTIES_KHR, &physicalDeviceSubgroupProperties };
+        p->pNext = static_cast<VkBaseOutStructure*>(static_cast<void*>(&physicalDevicePushDescriptorPropertiesKHR));
         pfnCb(p, pUser);
     },
     [](VkBaseOutStructure* p, void* pUser, PFN_vpStructChainerCb pfnCb) {
