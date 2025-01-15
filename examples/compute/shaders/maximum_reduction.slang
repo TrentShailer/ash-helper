@@ -6,36 +6,39 @@ struct BufferSet
     StructuredBuffer<int> read_buffer;
     RWStructuredBuffer<int> write_buffer;
 }
-[[vk::binding(0, 0)]]
-ParameterBlock<BufferSet> buffers;
 
 struct PushConstants
 {
     uint input_length;
 }
+
+[[vk::binding(0, 0)]]
+ParameterBlock<BufferSet> buffers;
+
 [vk::push_constant]
-ConstantBuffer<PushConstants> push_constants; // std140 alignment
+ConstantBuffer<PushConstants> push_constants;
+
+[SpecializationConstant]
+const uint SUBGROUP_SIZE;
 
 static const int OUT_OF_BOUNDS = int.minValue;
 
-[ForceInline]
-uint get_thread_read_index(uint group_index, uint thread_index)
+// The amount each thread increments their read index by every iteration
+uint iteration_stride()
+{
+    return WaveGetLaneCount();
+}
+
+// The starting index in the buffer for this thread
+uint thread_start(uint global_index)
 {
     let lane_count = WaveGetLaneCount();
-    let lane_index = WaveGetLaneIndex();
-    let warp_index = thread_index / lane_count;
+    let values_per_warp = lane_count * lane_count;
 
-    let warp_count = 128 / lane_count;
+    let global_warp_index = global_index / lane_count;
+    let global_warp_start = global_warp_index * values_per_warp;
 
-    let warp_stride = lane_count * lane_count;
-    let group_stride = warp_count * warp_stride;
-
-    let group_start = group_index * group_stride;
-    let warp_start = group_start + warp_stride * warp_index;
-
-    let thread_start = warp_start + lane_index;
-
-    return thread_start;
+    return global_warp_start + WaveGetLaneIndex();
 }
 
 [shader("compute")]
@@ -49,8 +52,8 @@ void main(
 
     let input_length = push_constants.input_length;
 
-    let stride = lane_count;
-    let index = get_thread_read_index(group_id.x, thread_id.x);
+    let stride = iteration_stride();
+    let index = thread_start(global_id.x);
 
     var thread_maximum = OUT_OF_BOUNDS;
 

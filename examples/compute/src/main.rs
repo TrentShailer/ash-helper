@@ -28,16 +28,25 @@ struct PushConstants {
 
 #[inline]
 fn n_dispatches(n_values_input: u32, subgroup_size: u32) -> u32 {
-    let values_processed_per_dispatch = 128 * subgroup_size;
+    let workgroup_size = 128;
+    let values_per_wave = subgroup_size * subgroup_size;
 
-    n_values_input.div_ceil(values_processed_per_dispatch)
+    let waves_per_workgroup = workgroup_size / subgroup_size;
+
+    let values_per_dispatch = waves_per_workgroup * values_per_wave;
+
+    n_values_input.div_ceil(values_per_dispatch)
 }
 
 #[inline]
 fn n_values_output(n_values_input: u32, subgroup_size: u32) -> u32 {
-    let subgroups_per_dispatch = 128 / subgroup_size; // 16
-    let values_processed_per_dispatch = 128 * subgroup_size; // 1024
-    let values_produced_per_dispatch = subgroups_per_dispatch; // 16
+    let workgroup_size = 128;
+    let values_per_wave = subgroup_size * subgroup_size;
+
+    let waves_per_workgroup = workgroup_size / subgroup_size;
+
+    let values_processed_per_dispatch = waves_per_workgroup * values_per_wave;
+    let values_produced_per_dispatch = workgroup_size / subgroup_size;
 
     let number_of_dispatches = n_values_input as f64 / values_processed_per_dispatch as f64;
 
