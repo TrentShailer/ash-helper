@@ -18,9 +18,6 @@ ParameterBlock<BufferSet> buffers;
 [vk::push_constant]
 ConstantBuffer<PushConstants> push_constants;
 
-[SpecializationConstant]
-const uint SUBGROUP_SIZE;
-
 static const int OUT_OF_BOUNDS = int.minValue;
 
 // The amount each thread increments their read index by every iteration
