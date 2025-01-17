@@ -19,7 +19,7 @@ pub unsafe fn onetime_command<Vk, Fn>(
 ) -> LabelledVkResult<()>
 where
     Vk: VulkanContext,
-    Fn: FnOnce(&ash::Device, vk::CommandBuffer),
+    Fn: FnOnce(&Vk, vk::CommandBuffer),
 {
     // Allocate command buffer
     let command_buffer = {
@@ -40,7 +40,7 @@ where
             .begin_command_buffer(command_buffer, &begin_info)
             .map_err(|e| VkError::new(e, "vkBeginCommandBuffer"))?;
 
-        record_callback(vk.device(), command_buffer);
+        record_callback(vk, command_buffer);
 
         unsafe { vk.device().end_command_buffer(command_buffer) }
             .map_err(|e| VkError::new(e, "vkEndCommandBuffer"))?;

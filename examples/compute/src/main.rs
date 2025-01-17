@@ -306,15 +306,19 @@ fn main() {
                 &vk,
                 transient_command_pool,
                 (),
-                |device, command_buffer| {
+                |vk, command_buffer| {
+                    cmd_try_begin_label(vk, command_buffer, "Copy Data to GPU");
+
                     let buffer_copy = vk::BufferCopy::default().size(data_size);
 
-                    device.cmd_copy_buffer(
+                    vk.device().cmd_copy_buffer(
                         command_buffer,
                         staging_buffer,
                         buffer,
                         slice::from_ref(&buffer_copy),
                     );
+
+                    cmd_try_end_label(vk, command_buffer);
                 },
                 "Copy Data to GPU",
             )
