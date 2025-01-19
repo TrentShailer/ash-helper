@@ -4,6 +4,16 @@ use ash::vk;
 
 use crate::VulkanContext;
 
+/// Transitions an image from an existing layout to a new layout.
+/// # Supported Layouts:
+/// * `PREINITIALIZED`
+/// * `UNDEFINED`
+/// * `COLOR_ATTACHMENT_OPTIMAL`
+/// * `SHADER_READ_ONLY_OPTIMAL`
+/// * `TRANSFER_DST_OPTIMAL`
+/// * `TRANSFER_SRC_OPTIMAL`
+/// * `GENERAL`
+/// * `PRESENT_SRC_KHR`
 pub unsafe fn cmd_transition_image<Vk: VulkanContext>(
     vk: &Vk,
     command_buffer: vk::CommandBuffer,
