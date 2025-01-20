@@ -1,14 +1,15 @@
 use ash::vk;
-use thiserror::Error;
 
 use crate::{VkError, VulkanContext};
+
+use super::AllocationError;
 
 /// Allocate memory for a buffer. Handles dedicated allocation.
 pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
     vk: &Vk,
     buffer: vk::Buffer,
     memory_flags: vk::MemoryPropertyFlags,
-) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), Error> {
+) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
     // Get the memory requirements
     let (memory_requirements, should_be_dedicated) = {
         let buffer_requirements = vk::BufferMemoryRequirementsInfo2::default().buffer(buffer);
@@ -29,7 +30,7 @@ pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
 
     // Find the memory index
     let memory_index = find_memorytype_index(vk, memory_requirements, memory_flags)
-        .ok_or(Error::NoSuitableMemoryType)?;
+        .ok_or(AllocationError::NoSuitableMemoryType)?;
 
     // Allocate the memory
     let memory = {
@@ -57,7 +58,7 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
     vk: &Vk,
     image: vk::Image,
     memory_flags: vk::MemoryPropertyFlags,
-) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), Error> {
+) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
     // Get the memory requirements
     let (memory_requirements, should_be_dedicated) = {
         let image_requirements = vk::ImageMemoryRequirementsInfo2::default().image(image);
@@ -78,7 +79,7 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
 
     // Find the memory index
     let memory_index = find_memorytype_index(vk, memory_requirements, memory_flags)
-        .ok_or(Error::NoSuitableMemoryType)?;
+        .ok_or(AllocationError::NoSuitableMemoryType)?;
 
     // Allocate the memory
     let memory = {
@@ -120,17 +121,4 @@ pub fn find_memorytype_index<Vk: VulkanContext>(
                 && memory_type.property_flags & memory_flags == memory_flags
         })
         .map(|(index, _memory_type)| index as _)
-}
-
-/// Error variants for trying to allocate memory.
-#[derive(Debug, Error)]
-#[non_exhaustive]
-pub enum Error {
-    /// A Vulkan call failed.
-    #[error(transparent)]
-    VkError(#[from] VkError),
-
-    /// No suitable memory type was available.
-    #[error("No suitable memory type was available for the allocation.")]
-    NoSuitableMemoryType,
 }

@@ -21,20 +21,16 @@
 
 extern crate alloc;
 
-pub use buffer::{allocate_buffer, Error as AllocateBufferError};
+pub use allocation::*;
 pub use commands::*;
 pub use debug_utils::*;
-pub use image::{allocate_image, Error as AllocateImageError};
-pub use memory::{allocate_buffer_memory, allocate_image_memory, Error as AllocateMemoryError};
 pub use result::*;
 pub use shader::*;
 pub use vulkan_context::*;
 
-mod buffer;
+mod allocation;
 mod commands;
 mod debug_utils;
-mod image;
-mod memory;
 mod result;
 mod shader;
 mod vulkan_context;
