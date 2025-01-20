@@ -1,14 +1,18 @@
 /// Number of bytes to align the start of each slice to.
-const ALIGNMENT: u64 = 16;
+const ALIGNMENT: u64 = 64;
 
 /// Calculate the start and end points of a slice of a buffer.
-/// * Slices are aligned to 16 byte boundaries.
-/// * `T` must have no padding between instances of `T`.
-pub fn calc_slice<T>(previous_end: u64, count: u64) -> (u64, u64) {
-    let padding = (ALIGNMENT - previous_end % ALIGNMENT) % ALIGNMENT;
+/// * Slices are aligned to 64 byte boundaries.
+/// * Elements are aligned to `alignment`.
+pub fn calc_slice<T>(previous_end: u64, alignment: u64, count: u64) -> (u64, u64) {
+    let start_padding = (ALIGNMENT - previous_end % ALIGNMENT) % ALIGNMENT;
 
-    let start = previous_end + padding;
-    let end = start + size_of::<T>() as u64 * count;
+    let start = previous_end + start_padding;
+
+    let element_padding = (alignment - start % alignment) % alignment;
+    let element_size = size_of::<T>() as u64 + element_padding;
+
+    let end = start + element_size * count;
 
     (start, end)
 }
