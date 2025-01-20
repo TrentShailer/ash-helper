@@ -1,6 +1,7 @@
 pub use buffer::allocate_buffer;
 pub use image::allocate_image;
 pub use memory::{allocate_buffer_memory, allocate_image_memory, find_memorytype_index};
+pub use slice::calc_slice;
 
 use crate::VkError;
 use thiserror::Error;
@@ -8,6 +9,7 @@ use thiserror::Error;
 mod buffer;
 mod image;
 mod memory;
+mod slice;
 
 /// Allocation failure reason.
 #[derive(Debug, Error)]
