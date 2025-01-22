@@ -23,6 +23,6 @@ impl VkError {
 
 impl Display for VkError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} call failed:\n{}", self.call, self.source)
+        write!(f, "Vulkan {} call failed:\n{}", self.call, self.source)
     }
 }
