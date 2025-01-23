@@ -1,3 +1,5 @@
+use core::slice;
+
 pub use preferences::SwapchainPreferences;
 pub use resources::FrameResources;
 
@@ -240,6 +242,29 @@ impl Swapchain {
             max_frames_in_flight: image_count,
             extent: capabilities.current_extent,
         })
+    }
+
+    /// Returns a copy of the resources for the current frame. Waits for the resorces to be free.
+    pub fn current_resources<Vk: VulkanContext>(
+        &self,
+        vk: &Vk,
+    ) -> LabelledVkResult<FrameResources> {
+        let resouces = self.resources[self.current_resources as usize];
+        unsafe {
+            vk.device()
+                .wait_for_fences(slice::from_ref(&resouces.in_flight_fence), true, u64::MAX)
+                .map_err(|e| VkError::new(e, "vkWaitForFences"))?;
+        }
+
+        Ok(resouces)
+    }
+
+    /// Converts a physical position to a position in Vulkan space.
+    pub fn screen_space(&self, physical: [f64; 2]) -> [f64; 2] {
+        [
+            (physical[0] / self.extent.width as f64) * 2.0 - 1.0,
+            (physical[1] / self.extent.height as f64) * 2.0 - 1.0,
+        ]
     }
 
     /// Destroys the Vulkan resources created for the swapchain.
