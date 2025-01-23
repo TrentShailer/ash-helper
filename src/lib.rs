@@ -26,6 +26,7 @@ pub use commands::*;
 pub use debug_utils::*;
 pub use result::*;
 pub use shader::*;
+pub use swapchain::*;
 pub use vulkan_context::*;
 
 mod allocation;
@@ -33,4 +34,5 @@ mod commands;
 mod debug_utils;
 mod result;
 mod shader;
+mod swapchain;
 mod vulkan_context;
