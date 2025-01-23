@@ -46,7 +46,7 @@ impl Swapchain {
     /// Create a new swapchain for the surface with preferences.
     ///
     /// Images are created with the `COLOR_ATTACHMENT` usage.
-    pub unsafe fn new<Vk, FormatFn, PresentFn>(
+    pub unsafe fn new<Vk, const F: usize, const P: usize, const A: usize>(
         vk: &Vk,
         transition_pool: vk::CommandPool,
         transition_purpose: Vk::QueuePurpose,
@@ -54,12 +54,10 @@ impl Swapchain {
         swapchain_device: &khr::swapchain::Device,
         surface: vk::SurfaceKHR,
         old_swapchain: Option<vk::SwapchainKHR>,
-        preferences: SwapchainPreferences<'_>,
+        preferences: SwapchainPreferences<F, P, A>,
     ) -> LabelledVkResult<Self>
     where
         Vk: VulkanContext,
-        FormatFn: Fn(&vk::SurfaceFormatKHR) -> u32,
-        PresentFn: Fn(&vk::PresentModeKHR) -> u32,
     {
         // Get surface capabilities
         let capabilities = unsafe {
