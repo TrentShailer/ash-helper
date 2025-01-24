@@ -19,13 +19,22 @@ pub struct FrameResources {
 
 impl FrameResources {
     /// Create new resources for a given frame.
-    pub unsafe fn new<Vk: VulkanContext>(vk: &Vk, index: u32) -> LabelledVkResult<Self> {
+    pub unsafe fn new<Vulkan: VulkanContext>(
+        vulkan: &Vulkan,
+        index: u32,
+    ) -> LabelledVkResult<Self> {
         let image_available_semaphore = {
             let create_info = vk::SemaphoreCreateInfo::default();
 
-            let semaphore = unsafe { vk.device().create_semaphore(&create_info, None) }
+            let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
-            unsafe { try_name(vk, semaphore, &format!("Image Available Semaphore {index}")) };
+            unsafe {
+                try_name(
+                    vulkan,
+                    semaphore,
+                    &format!("Image Available Semaphore {index}"),
+                )
+            };
 
             semaphore
         };
@@ -33,20 +42,32 @@ impl FrameResources {
         let render_finished_semaphore = {
             let create_info = vk::SemaphoreCreateInfo::default();
 
-            let semaphore = unsafe { vk.device().create_semaphore(&create_info, None) }
+            let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
-            unsafe { try_name(vk, semaphore, &format!("Render Finished Semaphore {index}")) };
+            unsafe {
+                try_name(
+                    vulkan,
+                    semaphore,
+                    &format!("Render Finished Semaphore {index}"),
+                )
+            };
 
             semaphore
         };
 
         let command_pool = {
-            let create_info =
-                vk::CommandPoolCreateInfo::default().queue_family_index(vk.queue_family_index());
+            let create_info = vk::CommandPoolCreateInfo::default()
+                .queue_family_index(vulkan.queue_family_index());
 
-            let command_pool = unsafe { vk.device().create_command_pool(&create_info, None) }
+            let command_pool = unsafe { vulkan.device().create_command_pool(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateCommandPool"))?;
-            unsafe { try_name(vk, command_pool, &format!("Render Command Pool {index}")) };
+            unsafe {
+                try_name(
+                    vulkan,
+                    command_pool,
+                    &format!("Render Command Pool {index}"),
+                )
+            };
 
             command_pool
         };
@@ -57,9 +78,16 @@ impl FrameResources {
                 .command_pool(command_pool)
                 .level(vk::CommandBufferLevel::PRIMARY);
 
-            let command_buffer = unsafe { vk.device().allocate_command_buffers(&allocate_info) }
-                .map_err(|e| VkError::new(e, "vkAllocateCommandBuffers"))?[0];
-            unsafe { try_name(vk, command_pool, &format!("Render Command Buffer {index}")) };
+            let command_buffer =
+                unsafe { vulkan.device().allocate_command_buffers(&allocate_info) }
+                    .map_err(|e| VkError::new(e, "vkAllocateCommandBuffers"))?[0];
+            unsafe {
+                try_name(
+                    vulkan,
+                    command_pool,
+                    &format!("Render Command Buffer {index}"),
+                )
+            };
 
             command_buffer
         };
@@ -67,11 +95,11 @@ impl FrameResources {
         let fence = {
             let create_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
-            let fence = unsafe { vk.device().create_fence(&create_info, None) }
+            let fence = unsafe { vulkan.device().create_fence(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateFence"))?;
 
             unsafe {
-                try_name(vk, fence, &format!("Render Fence {index}"));
+                try_name(vulkan, fence, &format!("Render Fence {index}"));
             }
 
             fence

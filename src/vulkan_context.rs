@@ -1,19 +1,7 @@
-use ash::{ext, vk};
-use parking_lot::Mutex;
+use ash::{ext, khr, vk};
 
 /// This trait provides standard ways to access the Vulkan Context.
 pub trait VulkanContext {
-    /// Type containing an identifier for a purpose of a queue.
-    ///
-    /// ## Example
-    /// ```
-    /// pub enum QueuePurpose {
-    ///     Compute,
-    ///     Graphics,
-    /// }
-    /// ```
-    type QueuePurpose;
-
     /// Gets a reference to the Vulkan entry.
     unsafe fn entry(&self) -> &ash::Entry;
 
@@ -31,7 +19,16 @@ pub trait VulkanContext {
 
     /// Returns the queue family index.
     fn queue_family_index(&self) -> u32;
+}
 
-    /// Returns the queue for the given purpose.
-    unsafe fn queue(&self, purpose: Self::QueuePurpose) -> &Mutex<vk::Queue>;
+/// This trait provides standard ways to access the Vulkan Surface Context.
+pub trait SurfaceContext {
+    /// Gets a reference to the surface instance.
+    unsafe fn surface_instance(&self) -> &khr::surface::Instance;
+
+    /// Gets a reference to the swapchain device.
+    unsafe fn swapchain_device(&self) -> &khr::swapchain::Device;
+
+    /// Gets a reference to the surface.
+    unsafe fn surface(&self) -> vk::SurfaceKHR;
 }

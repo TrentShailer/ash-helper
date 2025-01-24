@@ -5,8 +5,8 @@ use crate::{VkError, VulkanContext};
 use super::AllocationError;
 
 /// Allocate memory for a buffer. Handles dedicated allocation.
-pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
-    vk: &Vk,
+pub unsafe fn allocate_buffer_memory<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
     buffer: vk::Buffer,
     memory_flags: vk::MemoryPropertyFlags,
 ) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
@@ -18,7 +18,8 @@ pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
             vk::MemoryRequirements2::default().push_next(&mut dedicated_requirements);
 
         unsafe {
-            vk.device()
+            vulkan
+                .device()
                 .get_buffer_memory_requirements2(&buffer_requirements, &mut memory_requirements)
         };
 
@@ -29,7 +30,7 @@ pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
     };
 
     // Find the memory index
-    let memory_index = find_memorytype_index(vk, memory_requirements, memory_flags)
+    let memory_index = find_memorytype_index(vulkan, memory_requirements, memory_flags)
         .ok_or(AllocationError::NoSuitableMemoryType)?;
 
     // Allocate the memory
@@ -46,7 +47,7 @@ pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
             allocate_info
         };
 
-        unsafe { vk.device().allocate_memory(&allocate_info, None) }
+        unsafe { vulkan.device().allocate_memory(&allocate_info, None) }
             .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
     };
 
@@ -54,8 +55,8 @@ pub unsafe fn allocate_buffer_memory<Vk: VulkanContext>(
 }
 
 /// Allocate memory for an image. Handles dedicated allocation.
-pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
-    vk: &Vk,
+pub unsafe fn allocate_image_memory<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
     image: vk::Image,
     memory_flags: vk::MemoryPropertyFlags,
 ) -> Result<(vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
@@ -67,7 +68,8 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
             vk::MemoryRequirements2::default().push_next(&mut dedicated_requirements);
 
         unsafe {
-            vk.device()
+            vulkan
+                .device()
                 .get_image_memory_requirements2(&image_requirements, &mut memory_requirements)
         };
 
@@ -78,7 +80,7 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
     };
 
     // Find the memory index
-    let memory_index = find_memorytype_index(vk, memory_requirements, memory_flags)
+    let memory_index = find_memorytype_index(vulkan, memory_requirements, memory_flags)
         .ok_or(AllocationError::NoSuitableMemoryType)?;
 
     // Allocate the memory
@@ -95,7 +97,7 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
             allocate_info
         };
 
-        unsafe { vk.device().allocate_memory(&allocate_info, None) }
+        unsafe { vulkan.device().allocate_memory(&allocate_info, None) }
             .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
     };
 
@@ -103,14 +105,15 @@ pub unsafe fn allocate_image_memory<Vk: VulkanContext>(
 }
 
 /// Finds suitable memory type index for given requirements.
-pub fn find_memorytype_index<Vk: VulkanContext>(
-    vk: &Vk,
+pub fn find_memorytype_index<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
     memory_requirements: vk::MemoryRequirements,
     memory_flags: vk::MemoryPropertyFlags,
 ) -> Option<u32> {
     let memory_properties = unsafe {
-        vk.instance()
-            .get_physical_device_memory_properties(vk.physical_device())
+        vulkan
+            .instance()
+            .get_physical_device_memory_properties(vulkan.physical_device())
     };
 
     memory_properties.memory_types[..memory_properties.memory_type_count as _]

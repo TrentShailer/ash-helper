@@ -17,7 +17,6 @@ mod logger;
 mod vulkan;
 
 const TRY_DEBUG: bool = true;
-// Maximum memory = (2^26 * 2) + (((2^26 / (64 * 4)) * (64 / 4)) * 2) = 142606336
 const BUFFER_VALUES: u32 = 2u32.pow(26);
 const COMMAND_BUFFER_COUNT: u32 = 3;
 
@@ -64,7 +63,7 @@ fn log_duration(action: &str, start: Instant) {
 fn main() {
     setup_logger().unwrap();
 
-    let vk = {
+    let vulkan = {
         let start = Instant::now();
 
         let vk = Vulkan::new(TRY_DEBUG);
@@ -74,19 +73,20 @@ fn main() {
         vk
     };
 
-    unsafe { try_name(&vk, *vk.queue(()).lock(), "Main Queue") };
+    unsafe { try_name(&vulkan, vulkan.queue(), "Main Queue") };
 
     // Create Vulkan Objects
     let start = Instant::now();
 
     // Create transient command pool
-    let transient_command_pool = {
+    let transient_pool = {
         let create_info = vk::CommandPoolCreateInfo::default()
-            .queue_family_index(vk.queue_family_index())
+            .queue_family_index(vulkan.queue_family_index())
             .flags(vk::CommandPoolCreateFlags::TRANSIENT);
-        let command_pool = unsafe { vk.device().create_command_pool(&create_info, None) }.unwrap();
+        let command_pool =
+            unsafe { vulkan.device().create_command_pool(&create_info, None) }.unwrap();
 
-        unsafe { try_name(&vk, command_pool, "Transient Command Pool") };
+        unsafe { try_name(&vulkan, command_pool, "Transient Command Pool") };
 
         command_pool
     };
@@ -96,22 +96,26 @@ fn main() {
         (0..COMMAND_BUFFER_COUNT)
             .map(|index| {
                 let pool_create_info = vk::CommandPoolCreateInfo::default()
-                    .queue_family_index(vk.queue_family_index());
+                    .queue_family_index(vulkan.queue_family_index());
                 let command_pool =
-                    unsafe { vk.device().create_command_pool(&pool_create_info, None) }.unwrap();
+                    unsafe { vulkan.device().create_command_pool(&pool_create_info, None) }
+                        .unwrap();
 
                 let command_buffer_info = vk::CommandBufferAllocateInfo::default()
                     .command_pool(command_pool)
                     .level(vk::CommandBufferLevel::PRIMARY)
                     .command_buffer_count(1);
-                let command_buffer =
-                    unsafe { vk.device().allocate_command_buffers(&command_buffer_info) }.unwrap()
-                        [0];
+                let command_buffer = unsafe {
+                    vulkan
+                        .device()
+                        .allocate_command_buffers(&command_buffer_info)
+                }
+                .unwrap()[0];
 
                 // Debug: Name the objects.
                 unsafe {
-                    try_name(&vk, command_pool, &format!("Exec Pool {index}"));
-                    try_name(&vk, command_buffer, &format!("Exec Buffer {index}"));
+                    try_name(&vulkan, command_pool, &format!("Exec Pool {index}"));
+                    try_name(&vulkan, command_buffer, &format!("Exec Buffer {index}"));
                 }
 
                 (command_pool, command_buffer)
@@ -126,7 +130,7 @@ fn main() {
             .semaphore_type(vk::SemaphoreType::TIMELINE);
         let create_info = vk::SemaphoreCreateInfo::default().push_next(&mut type_info);
 
-        unsafe { vk.device().create_semaphore(&create_info, None) }.unwrap()
+        unsafe { vulkan.device().create_semaphore(&create_info, None) }.unwrap()
     };
 
     // Create descriptor layout
@@ -147,7 +151,12 @@ fn main() {
             .bindings(&bindings)
             .flags(vk::DescriptorSetLayoutCreateFlags::PUSH_DESCRIPTOR_KHR);
 
-        unsafe { vk.device().create_descriptor_set_layout(&layout_info, None) }.unwrap()
+        unsafe {
+            vulkan
+                .device()
+                .create_descriptor_set_layout(&layout_info, None)
+        }
+        .unwrap()
     };
 
     // Create pipeline
@@ -162,12 +171,15 @@ fn main() {
                 .push_constant_ranges(slice::from_ref(&push_range))
                 .set_layouts(slice::from_ref(&descriptor_set_layout));
 
-            unsafe { vk.device().create_pipeline_layout(&layout_info, None) }.unwrap()
+            unsafe { vulkan.device().create_pipeline_layout(&layout_info, None) }.unwrap()
         };
 
         let shader_module = unsafe {
-            create_shader_module_from_spv(&vk, include_bytes!("../shaders/maximum_reduction.spv"))
-                .unwrap()
+            create_shader_module_from_spv(
+                &vulkan,
+                include_bytes!("../shaders/maximum_reduction.spv"),
+            )
+            .unwrap()
         };
 
         let pipeline = {
@@ -181,7 +193,8 @@ fn main() {
                 .layout(pipeline_layout);
 
             unsafe {
-                vk.device()
+                vulkan
+                    .device()
                     .create_compute_pipelines(
                         vk::PipelineCache::null(),
                         slice::from_ref(&create_info),
@@ -200,8 +213,9 @@ fn main() {
         let mut properties =
             vk::PhysicalDeviceProperties2::default().push_next(&mut subgroup_properties);
         unsafe {
-            vk.instance()
-                .get_physical_device_properties2(vk.physical_device(), &mut properties)
+            vulkan
+                .instance()
+                .get_physical_device_properties2(vulkan.physical_device(), &mut properties)
         };
 
         subgroup_properties.subgroup_size
@@ -213,7 +227,7 @@ fn main() {
         n_values_output(BUFFER_VALUES, subgroup_size) as u64 * size_of::<i32>() as u64;
     let (buffer, memory, _) = {
         let buffer_bytes = data_size + first_output_size;
-        let queue_family = vk.queue_family_index();
+        let queue_family = vulkan.queue_family_index();
 
         let create_info = vk::BufferCreateInfo::default()
             .usage(
@@ -226,7 +240,7 @@ fn main() {
 
         unsafe {
             allocate_buffer(
-                &vk,
+                &vulkan,
                 &create_info,
                 vk::MemoryPropertyFlags::DEVICE_LOCAL,
                 "Main",
@@ -239,7 +253,7 @@ fn main() {
     // This wastes GPU memory, as it is reused for reading the result back which takes far less
     // memory than the copy to the GPU. However, it avoids another allocation.
     let (staging_buffer, staging_memory, _) = {
-        let queue_family = vk.queue_family_index();
+        let queue_family = vulkan.queue_family_index();
 
         let create_info = vk::BufferCreateInfo::default()
             .usage(vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::TRANSFER_DST)
@@ -248,7 +262,7 @@ fn main() {
 
         unsafe {
             allocate_buffer(
-                &vk,
+                &vulkan,
                 &create_info,
                 vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
                 "Staging",
@@ -289,7 +303,8 @@ fn main() {
         // Copy data to staging
         {
             let pointer = unsafe {
-                vk.device()
+                vulkan
+                    .device()
                     .map_memory(staging_memory, 0, data_size, vk::MemoryMapFlags::empty())
                     .unwrap()
             };
@@ -298,14 +313,14 @@ fn main() {
                 unsafe { Align::new(pointer, align_of::<i32>() as u64, data_size) };
             align.copy_from_slice(&data);
 
-            unsafe { vk.device().unmap_memory(staging_memory) };
+            unsafe { vulkan.device().unmap_memory(staging_memory) };
         }
 
         unsafe {
             onetime_command(
-                &vk,
-                transient_command_pool,
-                (),
+                &vulkan,
+                transient_pool,
+                vulkan.queue(),
                 |vk, command_buffer| {
                     cmd_try_begin_label(vk, command_buffer, "Copy Data to GPU");
 
@@ -364,13 +379,14 @@ fn main() {
                 .semaphores(slice::from_ref(&semaphore))
                 .values(slice::from_ref(&wait_value));
 
-            unsafe { vk.device().wait_semaphores(&wait_info, u64::MAX) }.unwrap();
+            unsafe { vulkan.device().wait_semaphores(&wait_info, u64::MAX) }.unwrap();
         }
 
         // Reset pool (buffer)
         let (command_pool, command_buffer) = command_objects[submission_index];
         unsafe {
-            vk.device()
+            vulkan
+                .device()
                 .reset_command_pool(command_pool, vk::CommandPoolResetFlags::empty())
                 .unwrap();
         }
@@ -379,17 +395,18 @@ fn main() {
         unsafe {
             let begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-            vk.device()
+            vulkan
+                .device()
                 .begin_command_buffer(command_buffer, &begin_info)
                 .unwrap();
 
             cmd_try_begin_label(
-                &vk,
+                &vulkan,
                 command_buffer,
                 &format!("Reduction Pass {submission_count}"),
             );
 
-            vk.device().cmd_push_constants(
+            vulkan.device().cmd_push_constants(
                 command_buffer,
                 pipeline_layout,
                 vk::ShaderStageFlags::COMPUTE,
@@ -419,7 +436,7 @@ fn main() {
                         .buffer_info(slice::from_ref(&write_descriptor)),
                 ];
 
-                vk.push_descriptor_device().cmd_push_descriptor_set(
+                vulkan.push_descriptor_device().cmd_push_descriptor_set(
                     command_buffer,
                     vk::PipelineBindPoint::COMPUTE,
                     pipeline_layout,
@@ -428,14 +445,19 @@ fn main() {
                 );
             }
 
-            vk.device()
-                .cmd_bind_pipeline(command_buffer, vk::PipelineBindPoint::COMPUTE, pipeline);
+            vulkan.device().cmd_bind_pipeline(
+                command_buffer,
+                vk::PipelineBindPoint::COMPUTE,
+                pipeline,
+            );
 
-            vk.device().cmd_dispatch(command_buffer, dispatches, 1, 1);
+            vulkan
+                .device()
+                .cmd_dispatch(command_buffer, dispatches, 1, 1);
 
-            cmd_try_end_label(&vk, command_buffer);
+            cmd_try_end_label(&vulkan, command_buffer);
 
-            vk.device().end_command_buffer(command_buffer).unwrap();
+            vulkan.device().end_command_buffer(command_buffer).unwrap();
         }
 
         // Submit
@@ -452,9 +474,13 @@ fn main() {
                 .push_next(&mut semaphore_submit_info);
 
             unsafe {
-                let queue = vk.queue(()).lock();
-                vk.device()
-                    .queue_submit(*queue, slice::from_ref(&submit_info), vk::Fence::null())
+                vulkan
+                    .device()
+                    .queue_submit(
+                        vulkan.queue(),
+                        slice::from_ref(&submit_info),
+                        vk::Fence::null(),
+                    )
                     .unwrap();
             }
         }
@@ -489,11 +515,11 @@ fn main() {
         // Allocate command buffer
         let command_buffer = {
             let allocate_info = vk::CommandBufferAllocateInfo::default()
-                .command_pool(transient_command_pool)
+                .command_pool(transient_pool)
                 .level(vk::CommandBufferLevel::PRIMARY)
                 .command_buffer_count(1);
 
-            unsafe { vk.device().allocate_command_buffers(&allocate_info) }.unwrap()[0]
+            unsafe { vulkan.device().allocate_command_buffers(&allocate_info) }.unwrap()[0]
         };
 
         // find result buffer
@@ -503,7 +529,8 @@ fn main() {
         unsafe {
             let begin_info = vk::CommandBufferBeginInfo::default()
                 .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-            vk.device()
+            vulkan
+                .device()
                 .begin_command_buffer(command_buffer, &begin_info)
                 .unwrap();
 
@@ -512,14 +539,14 @@ fn main() {
                 .src_offset(output_offset_bytes)
                 .dst_offset(0);
 
-            vk.device().cmd_copy_buffer(
+            vulkan.device().cmd_copy_buffer(
                 command_buffer,
                 buffer,
                 staging_buffer,
                 slice::from_ref(&buffer_copy),
             );
 
-            vk.device().end_command_buffer(command_buffer).unwrap();
+            vulkan.device().end_command_buffer(command_buffer).unwrap();
         }
 
         // Submit
@@ -536,14 +563,18 @@ fn main() {
                 .wait_dst_stage_mask(slice::from_ref(&vk::PipelineStageFlags::TRANSFER));
 
             unsafe {
-                let queue = vk.queue(()).lock();
-                queue_try_begin_label(&vk, *queue, "Copy to CPU");
+                queue_try_begin_label(&vulkan, vulkan.queue(), "Copy to CPU");
 
-                vk.device()
-                    .queue_submit(*queue, slice::from_ref(&submit_info), vk::Fence::null())
+                vulkan
+                    .device()
+                    .queue_submit(
+                        vulkan.queue(),
+                        slice::from_ref(&submit_info),
+                        vk::Fence::null(),
+                    )
                     .unwrap();
 
-                queue_try_end_label(&vk, *queue)
+                queue_try_end_label(&vulkan, vulkan.queue())
             }
         }
 
@@ -553,13 +584,17 @@ fn main() {
                 .values(slice::from_ref(&current_signal_value))
                 .semaphores(slice::from_ref(&semaphore));
 
-            vk.device().wait_semaphores(&wait_info, u64::MAX).unwrap();
+            vulkan
+                .device()
+                .wait_semaphores(&wait_info, u64::MAX)
+                .unwrap();
         }
 
         // Copy data to cpu
         let maximum = {
             let pointer = unsafe {
-                vk.device()
+                vulkan
+                    .device()
                     .map_memory(
                         staging_memory,
                         0,
@@ -572,7 +607,7 @@ fn main() {
             let raw_output: &[i32] = unsafe { slice::from_raw_parts(pointer.cast(), 1) };
             let maximum = raw_output[0];
 
-            unsafe { vk.device().unmap_memory(staging_memory) };
+            unsafe { vulkan.device().unmap_memory(staging_memory) };
 
             maximum
         };
@@ -580,8 +615,9 @@ fn main() {
         log_duration("Waited and Copied to CPU", start);
 
         unsafe {
-            vk.device()
-                .free_command_buffers(transient_command_pool, slice::from_ref(&command_buffer))
+            vulkan
+                .device()
+                .free_command_buffers(transient_pool, slice::from_ref(&command_buffer))
         };
 
         maximum
@@ -599,7 +635,7 @@ fn main() {
     // Clean up
     unsafe {
         let start = Instant::now();
-        let device = vk.device();
+        let device = vulkan.device();
 
         device.destroy_buffer(staging_buffer, None);
         device.free_memory(staging_memory, None);
@@ -611,7 +647,7 @@ fn main() {
             device.destroy_command_pool(pool, None);
         }
 
-        device.destroy_command_pool(transient_command_pool, None);
+        device.destroy_command_pool(transient_pool, None);
 
         device.destroy_semaphore(semaphore, None);
 
@@ -622,7 +658,7 @@ fn main() {
 
         device.destroy_shader_module(shader_module, None);
 
-        drop(vk);
+        drop(vulkan);
         log_duration("Cleaned up", start);
     }
 }

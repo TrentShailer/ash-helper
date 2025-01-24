@@ -15,8 +15,8 @@ use crate::VulkanContext;
 /// * `TRANSFER_SRC_OPTIMAL`
 /// * `GENERAL`
 /// * `PRESENT_SRC_KHR`
-pub unsafe fn cmd_transition_image<Vk: VulkanContext>(
-    vk: &Vk,
+pub unsafe fn cmd_transition_image<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
     command_buffer: vk::CommandBuffer,
     image: vk::Image,
     old_layout: vk::ImageLayout,
@@ -42,7 +42,7 @@ pub unsafe fn cmd_transition_image<Vk: VulkanContext>(
                 .level_count(1),
         );
 
-    vk.device().cmd_pipeline_barrier(
+    vulkan.device().cmd_pipeline_barrier(
         command_buffer,
         src_stage,
         dst_stage,

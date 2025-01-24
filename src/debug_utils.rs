@@ -8,12 +8,12 @@ use crate::{LabelledVkResult, VkError, VulkanContext};
 
 /// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkSetDebugUtilsObjectNameEXT.html
 #[inline]
-pub unsafe fn try_name<Vk, H>(vk: &Vk, handle: H, name: &str)
+pub unsafe fn try_name<Vulkan, H>(vulkan: &Vulkan, handle: H, name: &str)
 where
-    Vk: VulkanContext,
+    Vulkan: VulkanContext,
     H: vk::Handle,
 {
-    if let Some(device) = unsafe { vk.debug() } {
+    if let Some(device) = unsafe { vulkan.debug() } {
         let name = alloc::format!("{name}\0");
 
         let name_info = vk::DebugUtilsObjectNameInfoEXT::default()
@@ -28,11 +28,12 @@ where
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdBeginDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn cmd_try_begin_label<Vk>(vk: &Vk, command_buffer: vk::CommandBuffer, label: &str)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn cmd_try_begin_label<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
+    command_buffer: vk::CommandBuffer,
+    label: &str,
+) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         let label = alloc::format!("{label}\0");
 
         let label_info = vk::DebugUtilsLabelEXT::default()
@@ -44,22 +45,23 @@ where
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdEndDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn cmd_try_end_label<Vk>(vk: &Vk, command_buffer: vk::CommandBuffer)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn cmd_try_end_label<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
+    command_buffer: vk::CommandBuffer,
+) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         unsafe { device.cmd_end_debug_utils_label(command_buffer) };
     }
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdInsertDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn cmd_try_insert_label<Vk>(vk: &Vk, command_buffer: vk::CommandBuffer, label: &str)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn cmd_try_insert_label<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
+    command_buffer: vk::CommandBuffer,
+    label: &str,
+) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         let label = alloc::format!("{label}\0");
 
         let label_info = vk::DebugUtilsLabelEXT::default()
@@ -71,11 +73,12 @@ where
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueBeginDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn queue_try_begin_label<Vk>(vk: &Vk, queue: vk::Queue, label: &str)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn queue_try_begin_label<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
+    queue: vk::Queue,
+    label: &str,
+) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         let label = alloc::format!("{label}\0");
 
         let label_info = vk::DebugUtilsLabelEXT::default()
@@ -87,11 +90,12 @@ where
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueInsertDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn queue_try_insert_label<Vk>(vk: &Vk, queue: vk::Queue, label: &str)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn queue_try_insert_label<Vulkan: VulkanContext>(
+    vulkan: &Vulkan,
+    queue: vk::Queue,
+    label: &str,
+) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         let label = alloc::format!("{label}\0");
 
         let label_info = vk::DebugUtilsLabelEXT::default()
@@ -103,11 +107,8 @@ where
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueEndDebugUtilsLabelEXT.html>
 #[inline]
-pub unsafe fn queue_try_end_label<Vk>(vk: &Vk, queue: vk::Queue)
-where
-    Vk: VulkanContext,
-{
-    if let Some(device) = unsafe { vk.debug() } {
+pub unsafe fn queue_try_end_label<Vulkan: VulkanContext>(vulkan: &Vulkan, queue: vk::Queue) {
+    if let Some(device) = unsafe { vulkan.debug() } {
         unsafe { device.queue_end_debug_utils_label(queue) };
     }
 }

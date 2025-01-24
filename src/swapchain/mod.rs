@@ -6,7 +6,8 @@ pub use resources::FrameResources;
 use ash::{khr, vk};
 
 use crate::{
-    cmd_transition_image, onetime_command, try_name, LabelledVkResult, VkError, VulkanContext,
+    cmd_transition_image, onetime_command, try_name, LabelledVkResult, MaybeMutex, SurfaceContext,
+    VkError, VulkanContext,
 };
 
 mod preferences;
@@ -46,53 +47,75 @@ impl Swapchain {
     /// Create a new swapchain for the surface with preferences.
     ///
     /// Images are created with the `COLOR_ATTACHMENT` usage.
-    pub unsafe fn new<Vk, const F: usize, const P: usize, const A: usize>(
-        vk: &Vk,
-        transition_pool: vk::CommandPool,
-        transition_purpose: Vk::QueuePurpose,
-        surface_instance: &khr::surface::Instance,
-        swapchain_device: &khr::swapchain::Device,
-        surface: vk::SurfaceKHR,
+    pub unsafe fn new<'m, Vulkan, Surface, Pool, Queue>(
+        vulkan: &Vulkan,
+        surface: &Surface,
+        transition_pool: Pool,
+        transition_queue: Queue,
         old_swapchain: Option<vk::SwapchainKHR>,
-        preferences: SwapchainPreferences<F, P, A>,
+        preferences: &SwapchainPreferences,
     ) -> LabelledVkResult<Self>
     where
-        Vk: VulkanContext,
+        Vulkan: VulkanContext,
+        Surface: SurfaceContext,
+        Queue: Into<MaybeMutex<'m, vk::Queue>>,
+        Pool: Into<MaybeMutex<'m, vk::CommandPool>>,
     {
         // Get surface capabilities
         let capabilities = unsafe {
-            surface_instance
-                .get_physical_device_surface_capabilities(vk.physical_device(), surface)
+            surface
+                .surface_instance()
+                .get_physical_device_surface_capabilities(
+                    vulkan.physical_device(),
+                    surface.surface(),
+                )
                 .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"))?
         };
 
         // Select surface format
         let surface_format = unsafe {
-            surface_instance
-                .get_physical_device_surface_formats(vk.physical_device(), surface)
+            surface
+                .surface_instance()
+                .get_physical_device_surface_formats(vulkan.physical_device(), surface.surface())
                 .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfaceFormatsKHR"))?
         }
         .into_iter()
         .min_by_key(|format| {
-            let Some(preferences) = preferences.format else {
-                return 0;
+            let format_position = if let Some(preferences) = preferences.format.as_ref() {
+                preferences
+                    .iter()
+                    .position(|preference| *preference == format.format)
+                    .unwrap_or(usize::MAX)
+            } else {
+                0
             };
 
-            preferences
-                .iter()
-                .position(|preference| preference == format)
-                .unwrap_or(usize::MAX)
+            let colour_space_position = if let Some(preferences) = preferences.colour_space.as_ref()
+            {
+                preferences
+                    .iter()
+                    .position(|preference| *preference == format.color_space)
+                    .unwrap_or(usize::MAX)
+            } else {
+                0
+            };
+
+            format_position + colour_space_position
         })
         .unwrap();
 
         // Select the present mode
         let present_mode = {
-            surface_instance
-                .get_physical_device_surface_present_modes(vk.physical_device(), surface)
+            surface
+                .surface_instance()
+                .get_physical_device_surface_present_modes(
+                    vulkan.physical_device(),
+                    surface.surface(),
+                )
                 .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfacePresentModesKHR"))?
                 .into_iter()
                 .min_by_key(|present_mode| {
-                    let Some(preferences) = preferences.present_mode else {
+                    let Some(preferences) = preferences.present_mode.as_ref() else {
                         return 0;
                     };
 
@@ -106,7 +129,7 @@ impl Swapchain {
 
         // Select the composite alpha
         let composite_alpha = {
-            match preferences.composite_alpha {
+            match preferences.composite_alpha.as_ref() {
                 Some(preferences) => preferences
                     .iter()
                     .find(|&&preference| {
@@ -135,7 +158,7 @@ impl Swapchain {
         // Create swapchain
         let swapchain = {
             let create_info = vk::SwapchainCreateInfoKHR::default()
-                .surface(surface)
+                .surface(surface.surface())
                 .min_image_count(image_count)
                 .image_color_space(surface_format.color_space)
                 .image_format(surface_format.format)
@@ -154,16 +177,17 @@ impl Swapchain {
                 create_info
             };
 
-            swapchain_device
+            surface
+                .swapchain_device()
                 .create_swapchain(&create_info, None)
                 .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
         };
 
-        try_name(vk, swapchain, "Swapchain");
+        try_name(vulkan, swapchain, "Swapchain");
 
         // Retrieve images
 
-        let images = unsafe { swapchain_device.get_swapchain_images(swapchain) }
+        let images = unsafe { surface.swapchain_device().get_swapchain_images(swapchain) }
             .map_err(|e| VkError::new(e, "vkGetSwapchainImagesKHR"))?;
 
         // Create image views
@@ -183,13 +207,14 @@ impl Swapchain {
             (0..image_count)
                 .map(|index| {
                     let image = images[index as usize];
-                    try_name(vk, image, &format!("Swapchain Image {index}"));
+                    try_name(vulkan, image, &format!("Swapchain Image {index}"));
 
                     let create_info = create_info.image(image);
 
-                    let image_view = unsafe { vk.device().create_image_view(&create_info, None) }
-                        .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
-                    try_name(vk, image_view, &format!("Swapchain Image View {index}"));
+                    let image_view =
+                        unsafe { vulkan.device().create_image_view(&create_info, None) }
+                            .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
+                    try_name(vulkan, image_view, &format!("Swapchain Image View {index}"));
 
                     Ok(image_view)
                 })
@@ -198,15 +223,15 @@ impl Swapchain {
 
         // Create frame resources
         let frame_resources = (0..image_count)
-            .map(|index| FrameResources::new(vk, index))
+            .map(|index| FrameResources::new(vulkan, index))
             .collect::<Result<Vec<_>, VkError>>()?;
 
         // Transition images
         unsafe {
             onetime_command(
-                vk,
+                vulkan,
                 transition_pool,
-                transition_purpose,
+                transition_queue,
                 |vk, command_buffer| {
                     for image in &images {
                         cmd_transition_image(
