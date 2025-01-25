@@ -3,7 +3,7 @@ use core::slice;
 pub use preferences::SwapchainPreferences;
 pub use resources::FrameResources;
 
-use ash::{khr, vk};
+use ash::vk;
 
 use crate::{
     cmd_transition_image, onetime_command, try_name, LabelledVkResult, MaybeMutex, SurfaceContext,
@@ -291,12 +291,16 @@ impl Swapchain {
     }
 
     /// Destroys the Vulkan resources created for the swapchain.
-    pub unsafe fn destroy<Vk: VulkanContext>(
+    pub unsafe fn destroy<Vk: VulkanContext, Surface: SurfaceContext>(
         &self,
         vk: &Vk,
-        swapchain_device: &khr::swapchain::Device,
+        surface: &Surface,
     ) {
-        unsafe { swapchain_device.destroy_swapchain(self.swapchain, None) };
+        unsafe {
+            surface
+                .swapchain_device()
+                .destroy_swapchain(self.swapchain, None)
+        };
 
         for frame_resource in &self.resources {
             unsafe { frame_resource.destroy(vk) };
