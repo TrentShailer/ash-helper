@@ -283,10 +283,10 @@ impl Swapchain {
     }
 
     /// Converts a physical position to a position in Vulkan space.
-    pub fn screen_space(&self, physical: [f64; 2]) -> [f64; 2] {
+    pub fn screen_space(&self, physical: [f32; 2]) -> [f32; 2] {
         [
-            (physical[0] / self.extent.width as f64) * 2.0 - 1.0,
-            (physical[1] / self.extent.height as f64) * 2.0 - 1.0,
+            (physical[0] / self.extent.width as f32) * 2.0 - 1.0,
+            (physical[1] / self.extent.height as f32) * 2.0 - 1.0,
         ]
     }
 
