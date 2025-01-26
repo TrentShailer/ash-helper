@@ -102,7 +102,11 @@ fn pipeline_stage_access_tuple(
         vk::ImageLayout::TRANSFER_DST_OPTIMAL => vk::AccessFlags::TRANSFER_WRITE,
         vk::ImageLayout::TRANSFER_SRC_OPTIMAL => vk::AccessFlags::TRANSFER_READ,
 
-        vk::ImageLayout::GENERAL => vk::AccessFlags::TRANSFER_READ,
+        vk::ImageLayout::GENERAL => {
+            vk::AccessFlags::TRANSFER_WRITE
+                | vk::AccessFlags::MEMORY_READ
+                | vk::AccessFlags::MEMORY_WRITE
+        }
 
         vk::ImageLayout::PRESENT_SRC_KHR => vk::AccessFlags::NONE,
 
