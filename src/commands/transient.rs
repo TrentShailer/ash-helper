@@ -116,7 +116,7 @@ where
 /// deferred to another thread. Useful for copies during setup. Works best when `command_pool` was
 /// created with the `vk::CommandPoolCreateFlags::TRANSIENT`.
 pub unsafe fn async_onetime_command<'m, Vulkan, CmdFn, Queue>(
-    vulkan: Vulkan,
+    vulkan: Arc<Vulkan>,
     command_pool: Arc<Mutex<vk::CommandPool>>,
     queue: Queue,
     cmd_fn: CmdFn,
@@ -162,7 +162,7 @@ where
         let fence = unsafe { vulkan.device().create_fence(&fence_info, None) }
             .map_err(|e| VkError::new(e, "vkCreateFence"))?;
 
-        try_name(&vulkan, fence, label);
+        try_name(vulkan.as_ref(), fence, label);
 
         fence
     };
@@ -174,7 +174,7 @@ where
 
         let (queue, _queue_guard) = queue.into().lock();
 
-        queue_try_begin_label(&vulkan, queue, label);
+        queue_try_begin_label(vulkan.as_ref(), queue, label);
 
         unsafe {
             vulkan
@@ -183,7 +183,7 @@ where
                 .map_err(|e| VkError::new(e, "vkQueueSubmit"))?;
         }
 
-        queue_try_end_label(&vulkan, queue);
+        queue_try_end_label(vulkan.as_ref(), queue);
     }
     drop(pool);
 
