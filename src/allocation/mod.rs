@@ -1,7 +1,7 @@
 pub use buffer::allocate_buffer;
 pub use image::allocate_image;
 pub use memory::{allocate_buffer_memory, allocate_image_memory, find_memorytype_index};
-pub use slice::calc_slice;
+pub use slice::{BufferAlignment, BufferUsageFlags};
 
 use crate::VkError;
 use thiserror::Error;
