@@ -53,10 +53,11 @@ impl BufferAlignment {
     /// Calculate the start and end points of a slice of a buffer.
     /// * Slice offsets are aligned to the minimum alignment for it's usage.
     /// * Elements are aligned to `element_alignment`.
-    pub fn calc_slice<T>(
+    pub fn calc_slice(
         &self,
         previous_end: u64,
         element_alignment: u64,
+        element_size: u64,
         count: u64,
         usage: BufferUsageFlags,
     ) -> (u64, u64) {
@@ -97,7 +98,7 @@ impl BufferAlignment {
         let offset = previous_end + start_padding;
 
         let element_padding = (element_alignment - offset % element_alignment) % element_alignment;
-        let element_size = size_of::<T>() as u64 + element_padding;
+        let element_size = element_size + element_padding;
 
         let end = offset + element_size * count;
 
