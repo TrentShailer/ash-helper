@@ -100,7 +100,10 @@ impl Swapchain {
                 0
             };
 
-            format_position + colour_space_position
+            match format_position.checked_add(colour_space_position) {
+                Some(value) => value,
+                None => usize::MAX,
+            }
         })
         .unwrap();
 
