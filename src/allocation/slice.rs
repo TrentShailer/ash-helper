@@ -90,6 +90,7 @@ impl BufferAlignment {
                 .max(storage_buffer)
                 .max(texel_buffer)
                 .max(uniform_buffer)
+                .max(1)
         };
 
         let start_padding = (minimum_offset_alignment - previous_end % minimum_offset_alignment)
