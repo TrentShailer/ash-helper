@@ -2,7 +2,7 @@ use alloc::borrow::Cow;
 use core::ffi::CStr;
 
 use ash::{ext, vk};
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{LabelledVkResult, VkError, VulkanContext};
 

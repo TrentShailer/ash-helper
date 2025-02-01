@@ -13,7 +13,8 @@ ash = { version = "0.38", default-features = false, features = [
     "debug",
 ] }
 thiserror = { version = "2", default-features = false }
-log = { version = "0.4", default-features = false }
+
+tracing = "0.1"
 
 [dev-dependencies]
 ash = { version = "0.38", default-features = false, features = [
