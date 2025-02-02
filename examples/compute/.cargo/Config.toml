@@ -1,2 +1,0 @@
-[env]
-VULKAN_PROFILES_PATH = { value = "vulkan_profiles", force = true, relative = true }
