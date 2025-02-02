@@ -3,22 +3,17 @@ name = "ash-helper"
 description = "Helper functions for working with ash"
 version = "0.1.0"
 edition = "2021"
-license = "Apache-2.0"
+license = "MIT OR Apache-2.0"
 authors = ["Trent Shailer"]
 
 [dependencies]
-parking_lot = "0.12"
-ash = { version = "0.38", default-features = false, features = [
-    "std",
-    "debug",
-] }
 thiserror = { version = "2", default-features = false }
 
-tracing = "0.1"
-
-[dev-dependencies]
 ash = { version = "0.38", default-features = false, features = [
     "std",
-    "loaded",
     "debug",
 ] }
+
+parking_lot = "0.12"
+
+tracing = "0.1"
