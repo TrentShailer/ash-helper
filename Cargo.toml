@@ -2,7 +2,8 @@
 name = "ash-helper"
 description = "Helper functions for working with ash"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 authors = ["Trent Shailer"]
 
@@ -17,3 +18,29 @@ ash = { version = "0.38", default-features = false, features = [
 parking_lot = "0.12"
 
 tracing = "0.1"
+
+vp-ash = { git = "https://github.com/TrentShailer/vulkan-profiles-ash.git", branch = "vulkan-sdk-1.4.304", optional = true, default-features = false }
+
+[features]
+vulkan-profiles = ["vp-ash"]
+
+[lints.rust]
+"missing_docs" = "warn"
+"unused_qualifications" = "warn"
+"rust_2018_idioms" = "warn"
+"deprecated_in_future" = "warn"
+
+[lints.clippy]
+"alloc_instead_of_core" = "warn"
+"std_instead_of_alloc" = "warn"
+"std_instead_of_core" = "warn"
+
+"use_self" = "warn"
+"cast_lossless" = "warn"
+"unnecessary_self_imports" = "warn"
+"inconsistent_struct_constructor" = "warn"
+
+"default_trait_access" = "warn"
+"clone_on_ref_ptr" = "warn"
+
+"missing_safety_doc" = "allow"

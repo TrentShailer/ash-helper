@@ -42,15 +42,17 @@ pub unsafe fn cmd_transition_image<Vulkan: VulkanContext>(
                 .level_count(1),
         );
 
-    vulkan.device().cmd_pipeline_barrier(
-        command_buffer,
-        src_stage,
-        dst_stage,
-        vk::DependencyFlags::empty(),
-        &[],
-        &[],
-        slice::from_ref(&image_barrier),
-    );
+    unsafe {
+        vulkan.device().cmd_pipeline_barrier(
+            command_buffer,
+            src_stage,
+            dst_stage,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            slice::from_ref(&image_barrier),
+        );
+    }
 
     Some(())
 }

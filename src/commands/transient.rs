@@ -3,8 +3,8 @@ use core::slice;
 use ash::vk;
 
 use crate::{
-    debug_utils::{queue_try_begin_label, queue_try_end_label, try_name},
     LabelledVkResult, MaybeMutex, VkError, VulkanContext,
+    debug_utils::{queue_try_begin_label, queue_try_end_label, try_name},
 };
 
 /// Creates the resources to run a onetime command, waits for completion, then cleans up. Useful for
@@ -41,10 +41,12 @@ where
     {
         let begin_info = vk::CommandBufferBeginInfo::default()
             .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
-        vulkan
-            .device()
-            .begin_command_buffer(command_buffer, &begin_info)
-            .map_err(|e| VkError::new(e, "vkBeginCommandBuffer"))?;
+        unsafe {
+            vulkan
+                .device()
+                .begin_command_buffer(command_buffer, &begin_info)
+                .map_err(|e| VkError::new(e, "vkBeginCommandBuffer"))?;
+        }
 
         cmd_fn(vulkan, command_buffer);
 
@@ -59,7 +61,7 @@ where
         let fence = unsafe { vulkan.device().create_fence(&fence_info, None) }
             .map_err(|e| VkError::new(e, "vkCreateFence"))?;
 
-        try_name(vulkan, fence, label);
+        unsafe { try_name(vulkan, fence, label) };
 
         fence
     };
@@ -71,7 +73,7 @@ where
 
         let (queue, _queue_guard) = queue.into().lock();
 
-        queue_try_begin_label(vulkan, queue, label);
+        unsafe { queue_try_begin_label(vulkan, queue, label) };
 
         unsafe {
             vulkan
@@ -80,7 +82,7 @@ where
                 .map_err(|e| VkError::new(e, "vkQueueSubmit"))?;
         }
 
-        queue_try_end_label(vulkan, queue);
+        unsafe { queue_try_end_label(vulkan, queue) };
     }
 
     #[allow(unused)]

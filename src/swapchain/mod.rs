@@ -6,8 +6,8 @@ pub use resources::FrameResources;
 use ash::vk;
 
 use crate::{
-    cmd_transition_image, onetime_command, try_name, LabelledVkResult, MaybeMutex, SurfaceContext,
-    VkError, VulkanContext,
+    LabelledVkResult, MaybeMutex, SurfaceContext, VkError, VulkanContext, cmd_transition_image,
+    onetime_command, try_name,
 };
 
 mod preferences;
@@ -108,7 +108,7 @@ impl Swapchain {
         .unwrap();
 
         // Select the present mode
-        let present_mode = {
+        let present_mode = unsafe {
             surface
                 .surface_instance()
                 .get_physical_device_surface_present_modes(
@@ -161,7 +161,7 @@ impl Swapchain {
         // Create swapchain
         let swapchain = {
             let create_info = vk::SwapchainCreateInfoKHR::default()
-                .surface(surface.surface())
+                .surface(unsafe { surface.surface() })
                 .min_image_count(image_count)
                 .image_color_space(surface_format.color_space)
                 .image_format(surface_format.format)
@@ -180,13 +180,15 @@ impl Swapchain {
                 create_info
             };
 
-            surface
-                .swapchain_device()
-                .create_swapchain(&create_info, None)
-                .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
+            unsafe {
+                surface
+                    .swapchain_device()
+                    .create_swapchain(&create_info, None)
+                    .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
+            }
         };
 
-        try_name(vulkan, swapchain, "Swapchain");
+        unsafe { try_name(vulkan, swapchain, "Swapchain") };
 
         // Retrieve images
 
@@ -210,14 +212,16 @@ impl Swapchain {
             (0..image_count)
                 .map(|index| {
                     let image = images[index as usize];
-                    try_name(vulkan, image, &format!("Swapchain Image {index}"));
+                    unsafe { try_name(vulkan, image, &format!("Swapchain Image {index}")) };
 
                     let create_info = create_info.image(image);
 
                     let image_view =
                         unsafe { vulkan.device().create_image_view(&create_info, None) }
                             .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
-                    try_name(vulkan, image_view, &format!("Swapchain Image View {index}"));
+                    unsafe {
+                        try_name(vulkan, image_view, &format!("Swapchain Image View {index}"));
+                    };
 
                     Ok(image_view)
                 })
@@ -226,7 +230,7 @@ impl Swapchain {
 
         // Create frame resources
         let frame_resources = (0..image_count)
-            .map(|index| FrameResources::new(vulkan, index))
+            .map(|index| unsafe { FrameResources::new(vulkan, index) })
             .collect::<Result<Vec<_>, VkError>>()?;
 
         // Transition images

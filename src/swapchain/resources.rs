@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::{try_name, LabelledVkResult, VkError, VulkanContext};
+use crate::{LabelledVkResult, VkError, VulkanContext, try_name};
 
 /// The resources for rendering and presenting an individual frame.
 #[derive(Clone, Copy)]
@@ -116,11 +116,13 @@ impl FrameResources {
 
     /// Destroy the Vulkan resources for this frame.
     pub unsafe fn destroy<Vk: VulkanContext>(&self, vk: &Vk) {
-        vk.device().destroy_fence(self.in_flight_fence, None);
-        vk.device()
-            .destroy_semaphore(self.image_available_semaphore, None);
-        vk.device()
-            .destroy_semaphore(self.render_finished_semaphore, None);
-        vk.device().destroy_command_pool(self.command_pool, None);
+        unsafe {
+            vk.device().destroy_fence(self.in_flight_fence, None);
+            vk.device()
+                .destroy_semaphore(self.image_available_semaphore, None);
+            vk.device()
+                .destroy_semaphore(self.render_finished_semaphore, None);
+            vk.device().destroy_command_pool(self.command_pool, None);
+        }
     }
 }

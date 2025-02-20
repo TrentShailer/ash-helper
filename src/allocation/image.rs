@@ -1,8 +1,8 @@
 use ash::vk;
 
-use crate::{try_name, VkError, VulkanContext};
+use crate::{VkError, VulkanContext, try_name};
 
-use super::{memory::allocate_image_memory, AllocationError};
+use super::{AllocationError, memory::allocate_image_memory};
 
 /// Allocate and bind memory to a new buffer.
 pub unsafe fn allocate_image<Vulkan: VulkanContext>(
