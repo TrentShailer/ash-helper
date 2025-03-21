@@ -19,6 +19,9 @@ pub trait VulkanContext {
 
     /// Returns the queue family index.
     fn queue_family_index(&self) -> u32;
+
+    /// Returns the queue family index as a slice.
+    fn queue_family_index_as_slice(&self) -> &[u32];
 }
 
 /// This trait provides standard ways to access the Vulkan Surface Context.
@@ -31,4 +34,10 @@ pub trait SurfaceContext {
 
     /// Gets a reference to the surface.
     unsafe fn surface(&self) -> vk::SurfaceKHR;
+}
+
+/// The Vulkan Context implements additional context.
+pub trait Context<T> {
+    /// Gets the context associated object.
+    unsafe fn context(&self) -> &T;
 }
