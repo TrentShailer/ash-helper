@@ -7,7 +7,6 @@ use tracing::{debug, error, info, warn};
 use crate::{LabelledVkResult, VkError, VulkanContext};
 
 /// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkSetDebugUtilsObjectNameEXT.html
-#[inline]
 pub unsafe fn try_name<Vulkan, H>(vulkan: &Vulkan, handle: H, name: &str)
 where
     Vulkan: VulkanContext,
@@ -26,8 +25,28 @@ where
     }
 }
 
+/// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkSetDebugUtilsObjectNameEXT.html
+pub unsafe fn try_name_all<Vulkan, H>(vulkan: &Vulkan, handles: &[H], name: &str)
+where
+    Vulkan: VulkanContext,
+    H: vk::Handle + Copy,
+{
+    if let Some(device) = unsafe { vulkan.debug() } {
+        for (index, handle) in handles.iter().enumerate() {
+            let name = alloc::format!("{name}_{index}\0");
+
+            let name_info = vk::DebugUtilsObjectNameInfoEXT::default()
+                .object_handle(*handle)
+                .object_name(CStr::from_bytes_until_nul(name.as_bytes()).unwrap());
+
+            if let Err(e) = unsafe { device.set_debug_utils_object_name(&name_info) } {
+                warn!("Failed to set the object name {name}:\n{e}");
+            }
+        }
+    }
+}
+
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdBeginDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn cmd_try_begin_label<Vulkan: VulkanContext>(
     vulkan: &Vulkan,
     command_buffer: vk::CommandBuffer,
@@ -44,7 +63,6 @@ pub unsafe fn cmd_try_begin_label<Vulkan: VulkanContext>(
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdEndDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn cmd_try_end_label<Vulkan: VulkanContext>(
     vulkan: &Vulkan,
     command_buffer: vk::CommandBuffer,
@@ -55,7 +73,6 @@ pub unsafe fn cmd_try_end_label<Vulkan: VulkanContext>(
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdInsertDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn cmd_try_insert_label<Vulkan: VulkanContext>(
     vulkan: &Vulkan,
     command_buffer: vk::CommandBuffer,
@@ -72,7 +89,6 @@ pub unsafe fn cmd_try_insert_label<Vulkan: VulkanContext>(
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueBeginDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn queue_try_begin_label<Vulkan: VulkanContext>(
     vulkan: &Vulkan,
     queue: vk::Queue,
@@ -89,7 +105,6 @@ pub unsafe fn queue_try_begin_label<Vulkan: VulkanContext>(
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueInsertDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn queue_try_insert_label<Vulkan: VulkanContext>(
     vulkan: &Vulkan,
     queue: vk::Queue,
@@ -106,7 +121,6 @@ pub unsafe fn queue_try_insert_label<Vulkan: VulkanContext>(
 }
 
 /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkQueueEndDebugUtilsLabelEXT.html>
-#[inline]
 pub unsafe fn queue_try_end_label<Vulkan: VulkanContext>(vulkan: &Vulkan, queue: vk::Queue) {
     if let Some(device) = unsafe { vulkan.debug() } {
         unsafe { device.queue_end_debug_utils_label(queue) };
