@@ -37,7 +37,7 @@ pub trait SurfaceContext {
 }
 
 /// The Vulkan Context implements additional context.
-pub trait Context<T> {
+pub trait Context<T>: VulkanContext {
     /// Gets the context associated object.
     unsafe fn context(&self) -> &T;
 }
