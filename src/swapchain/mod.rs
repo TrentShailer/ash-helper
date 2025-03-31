@@ -1,4 +1,4 @@
-use core::slice;
+use core::{fmt, slice};
 
 pub use preferences::SwapchainPreferences;
 pub use resources::FrameResources;
@@ -316,5 +316,17 @@ impl Swapchain {
         for &image_view in &self.views {
             unsafe { vk.device().destroy_image_view(image_view, None) };
         }
+    }
+}
+
+impl fmt::Debug for Swapchain {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Swapchain")
+            .field("max_frames_in_flight", &self.max_frames_in_flight)
+            .field("extent", &self.extent)
+            .field("format", &self.format)
+            .field("composite_alpha", &self.composite_alpha)
+            .field("present_mode", &self.present_mode)
+            .finish_non_exhaustive()
     }
 }
