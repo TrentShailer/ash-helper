@@ -1,46 +1,44 @@
-use core::{fmt, slice};
+use core::fmt;
 
+pub use info::SwapchainInfo;
 pub use preferences::SwapchainPreferences;
 pub use resources::FrameResources;
+pub use retirement::SwapchainRetirement;
 
 use ash::vk;
 
 use crate::{
-    LabelledVkResult, MaybeMutex, SurfaceContext, VkError, VulkanContext, cmd_transition_image,
-    onetime_command, try_name,
+    LabelledVkResult, MaybeMutex, SurfaceContext, VkError, VulkanContext, try_name, try_name_all,
 };
 
+mod acquire;
+mod info;
 mod preferences;
 mod resources;
+mod retirement;
 
 /// A swapchain and associated resources and details.
 pub struct Swapchain {
     /// Flag if the swapchain needs to be recreated.
     pub needs_to_rebuild: bool,
-
-    /// The number of images in the swapchain.
-    pub max_frames_in_flight: u32,
-    /// The extent of the swapchain.
-    pub extent: vk::Extent2D,
-    /// The surface format of the swapchain.
-    pub format: vk::SurfaceFormatKHR,
-    /// The swachain's composite alpha.
-    pub composite_alpha: vk::CompositeAlphaFlagsKHR,
-    /// The swachain's present mode.
-    pub present_mode: vk::PresentModeKHR,
+    /// The swapchain info.
+    pub info: SwapchainInfo,
 
     /// The swapchain.
     pub swapchain: vk::SwapchainKHR,
-
-    /// The index of the current frame resources.
-    pub current_resources: u32,
-
     /// The swapchain images.
     pub images: Vec<vk::Image>,
     /// The swapchain images' views.
     pub views: Vec<vk::ImageView>,
+
+    /// The index of the current frame resources.
+    pub next_resources: usize,
     /// The resources for each frame.
     pub resources: Vec<FrameResources>,
+
+    /// The image indexes this swapchain has presented. The implementation assumes any acquired
+    /// image is presented.
+    pub presented_images: Vec<u32>,
 }
 
 impl Swapchain {
@@ -50,10 +48,8 @@ impl Swapchain {
     pub unsafe fn new<'m, Vulkan, Surface, Pool, Queue>(
         vulkan: &Vulkan,
         surface: &Surface,
-        transition_pool: Pool,
-        transition_queue: Queue,
-        old_swapchain: Option<vk::SwapchainKHR>,
-        preferences: &SwapchainPreferences,
+        old_resources: Option<(Vec<FrameResources>, usize)>,
+        swapchain_create_info: vk::SwapchainCreateInfoKHR<'_>,
     ) -> LabelledVkResult<Self>
     where
         Vulkan: VulkanContext,
@@ -61,246 +57,104 @@ impl Swapchain {
         Queue: Into<MaybeMutex<'m, vk::Queue>>,
         Pool: Into<MaybeMutex<'m, vk::CommandPool>>,
     {
-        // Get surface capabilities
-        let capabilities = unsafe {
-            surface
-                .surface_instance()
-                .get_physical_device_surface_capabilities(
-                    vulkan.physical_device(),
-                    surface.surface(),
-                )
-                .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"))?
-        };
-
-        // Select surface format
-        let surface_format = unsafe {
-            surface
-                .surface_instance()
-                .get_physical_device_surface_formats(vulkan.physical_device(), surface.surface())
-                .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfaceFormatsKHR"))?
-        }
-        .into_iter()
-        .min_by_key(|format| {
-            let format_position = if let Some(preferences) = preferences.format.as_ref() {
-                preferences
-                    .iter()
-                    .position(|preference| *preference == format.format)
-                    .unwrap_or(usize::MAX)
-            } else {
-                0
-            };
-
-            let colour_space_position = if let Some(preferences) = preferences.colour_space.as_ref()
-            {
-                preferences
-                    .iter()
-                    .position(|preference| *preference == format.color_space)
-                    .unwrap_or(usize::MAX)
-            } else {
-                0
-            };
-
-            match format_position.checked_add(colour_space_position) {
-                Some(value) => value,
-                None => usize::MAX,
-            }
-        })
-        .unwrap();
-
-        // Select the present mode
-        let present_mode = unsafe {
-            surface
-                .surface_instance()
-                .get_physical_device_surface_present_modes(
-                    vulkan.physical_device(),
-                    surface.surface(),
-                )
-                .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfacePresentModesKHR"))?
-                .into_iter()
-                .min_by_key(|present_mode| {
-                    let Some(preferences) = preferences.present_mode.as_ref() else {
-                        return 0;
-                    };
-
-                    preferences
-                        .iter()
-                        .position(|preference| preference == present_mode)
-                        .unwrap_or(usize::MAX)
-                })
-                .unwrap()
-        };
-
-        // Select the composite alpha
-        let composite_alpha = {
-            match preferences.composite_alpha.as_ref() {
-                Some(preferences) => preferences
-                    .iter()
-                    .find(|&&preference| {
-                        capabilities.supported_composite_alpha.contains(preference)
-                    })
-                    .unwrap_or(&vk::CompositeAlphaFlagsKHR::OPAQUE)
-                    .to_owned(),
-
-                None => vk::CompositeAlphaFlagsKHR::OPAQUE,
-            }
-        };
-
-        // Get the image count
-        let image_count = {
-            let max_image_count = if capabilities.max_image_count == 0 {
-                preferences.frames_in_flight
-            } else {
-                capabilities.max_image_count
-            };
-
-            preferences
-                .frames_in_flight
-                .clamp(capabilities.min_image_count, max_image_count)
-        };
-
         // Create swapchain
-        let swapchain = {
-            let create_info = vk::SwapchainCreateInfoKHR::default()
-                .surface(unsafe { surface.surface() })
-                .min_image_count(image_count)
-                .image_color_space(surface_format.color_space)
-                .image_format(surface_format.format)
-                .image_extent(capabilities.current_extent)
-                .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
-                .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
-                .pre_transform(capabilities.current_transform)
-                .composite_alpha(composite_alpha)
-                .present_mode(present_mode)
-                .clipped(true)
-                .image_array_layers(1);
-
-            let create_info = if let Some(old_swapchain) = old_swapchain {
-                create_info.old_swapchain(old_swapchain)
-            } else {
-                create_info
-            };
-
-            unsafe {
-                surface
-                    .swapchain_device()
-                    .create_swapchain(&create_info, None)
-                    .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
-            }
+        let swapchain = unsafe {
+            surface
+                .swapchain_device()
+                .create_swapchain(&swapchain_create_info, None)
+                .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
         };
-
         unsafe { try_name(vulkan, swapchain, "Swapchain") };
 
         // Retrieve images
+        let images = {
+            let images = unsafe { surface.swapchain_device().get_swapchain_images(swapchain) }
+                .map_err(|e| VkError::new(e, "vkGetSwapchainImagesKHR"))?;
 
-        let images = unsafe { surface.swapchain_device().get_swapchain_images(swapchain) }
-            .map_err(|e| VkError::new(e, "vkGetSwapchainImagesKHR"))?;
+            unsafe { try_name_all(vulkan, &images, "Swapchain Image") };
+
+            images
+        };
+        let image_count = images.len();
 
         // Create image views
         let image_views = {
-            let create_info = vk::ImageViewCreateInfo::default()
-                .view_type(vk::ImageViewType::TYPE_2D)
-                .format(surface_format.format)
-                .subresource_range(
-                    vk::ImageSubresourceRange::default()
-                        .aspect_mask(vk::ImageAspectFlags::COLOR)
-                        .base_mip_level(0)
-                        .base_array_layer(0)
-                        .layer_count(1)
-                        .level_count(1),
-                );
-
-            (0..image_count)
-                .map(|index| {
-                    let image = images[index as usize];
-                    unsafe { try_name(vulkan, image, &format!("Swapchain Image {index}")) };
-
-                    let create_info = create_info.image(image);
-
-                    let image_view =
-                        unsafe { vulkan.device().create_image_view(&create_info, None) }
-                            .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
-                    unsafe {
-                        try_name(vulkan, image_view, &format!("Swapchain Image View {index}"));
-                    };
-
-                    Ok(image_view)
-                })
-                .collect::<Result<Vec<_>, VkError>>()?
+            // Image views can only be created when the image is backed with memory.
+            if swapchain_create_info
+                .flags
+                .contains(vk::SwapchainCreateFlagsKHR::DEFERRED_MEMORY_ALLOCATION_EXT)
+            {
+                vec![vk::ImageView::null(); image_count]
+            } else {
+                images
+                    .iter()
+                    .enumerate()
+                    .map(|(index, &image)| {
+                        Self::create_view(
+                            vulkan,
+                            index as u32,
+                            image,
+                            swapchain_create_info.image_format,
+                            swapchain_create_info.image_array_layers,
+                        )
+                    })
+                    .collect::<Result<Vec<_>, VkError>>()?
+            }
         };
 
         // Create frame resources
-        let frame_resources = (0..image_count)
-            .map(|index| unsafe { FrameResources::new(vulkan, index) })
-            .collect::<Result<Vec<_>, VkError>>()?;
+        let (resources, next_resources) = {
+            let existing_count = old_resources
+                .as_ref()
+                .map(|(resources, _)| resources.len())
+                .unwrap_or(0);
 
-        // Transition images
-        unsafe {
-            onetime_command(
-                vulkan,
-                transition_pool,
-                transition_queue,
-                |vk, command_buffer| {
-                    for image in &images {
-                        cmd_transition_image(
-                            vk,
-                            command_buffer,
-                            *image,
-                            vk::ImageLayout::UNDEFINED,
-                            preferences.image_layout,
-                        )
-                        .unwrap();
-                    }
-                },
-                "Transition Swapchain Images",
-            )
-        }?;
+            let new_resources = if image_count > existing_count {
+                (existing_count..image_count)
+                    .map(|index| unsafe { FrameResources::new(vulkan, index) })
+                    .collect::<Result<Vec<_>, VkError>>()?
+            } else {
+                vec![]
+            };
+
+            match old_resources {
+                Some((mut resources, next_resources)) => {
+                    resources.extend(new_resources.iter());
+                    (resources, next_resources)
+                }
+                None => (new_resources, 0),
+            }
+        };
+
+        let info = SwapchainInfo::new(&swapchain_create_info, image_count);
 
         Ok(Self {
             needs_to_rebuild: false,
-            current_resources: 0,
+            info,
 
             swapchain,
-
             images,
             views: image_views,
 
-            resources: frame_resources,
+            next_resources,
+            resources,
 
-            present_mode,
-            composite_alpha,
-            format: surface_format,
-            max_frames_in_flight: image_count,
-            extent: capabilities.current_extent,
+            presented_images: vec![],
         })
     }
 
-    /// Returns a copy of the resources for the current frame. Waits for the resorces to be free.
-    pub fn current_resources<Vk: VulkanContext>(
-        &self,
-        vk: &Vk,
-    ) -> LabelledVkResult<FrameResources> {
-        let resouces = self.resources[self.current_resources as usize];
-        unsafe {
-            vk.device()
-                .wait_for_fences(slice::from_ref(&resouces.in_flight_fence), true, u64::MAX)
-                .map_err(|e| VkError::new(e, "vkWaitForFences"))?;
-        }
-
-        Ok(resouces)
-    }
-
     /// Converts a physical position to a position in Vulkan space.
-    pub fn screen_space(&self, physical: [f32; 2]) -> [f32; 2] {
+    pub fn screen_to_vulkan_space(&self, physical: [f32; 2]) -> [f32; 2] {
         [
-            (physical[0] / self.extent.width as f32) * 2.0 - 1.0,
-            (physical[1] / self.extent.height as f32) * 2.0 - 1.0,
+            (physical[0] / self.info.extent.width as f32) * 2.0 - 1.0,
+            (physical[1] / self.info.extent.height as f32) * 2.0 - 1.0,
         ]
     }
 
     /// Destroys the Vulkan resources created for the swapchain.
-    pub unsafe fn destroy<Vk: VulkanContext, Surface: SurfaceContext>(
+    pub unsafe fn destroy<Vulkan: VulkanContext, Surface: SurfaceContext>(
         &self,
-        vk: &Vk,
+        vulkan: &Vulkan,
         surface: &Surface,
     ) {
         unsafe {
@@ -309,24 +163,55 @@ impl Swapchain {
                 .destroy_swapchain(self.swapchain, None)
         };
 
-        for frame_resource in &self.resources {
-            unsafe { frame_resource.destroy(vk) };
-        }
-
         for &image_view in &self.views {
-            unsafe { vk.device().destroy_image_view(image_view, None) };
+            unsafe { vulkan.device().destroy_image_view(image_view, None) };
         }
+    }
+
+    /// Creates the view for a swapchain image. `DEFERRED_MEMORY_ALLOCATION` requires this is called
+    /// only after the image has been acquired.
+    fn create_view<Vulkan>(
+        vulkan: &Vulkan,
+        image_index: u32,
+        image: vk::Image,
+        format: vk::Format,
+        layers: u32,
+    ) -> LabelledVkResult<vk::ImageView>
+    where
+        Vulkan: VulkanContext,
+    {
+        let create_info = vk::ImageViewCreateInfo::default()
+            .view_type(vk::ImageViewType::TYPE_2D)
+            .format(format)
+            .subresource_range(
+                vk::ImageSubresourceRange::default()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .base_array_layer(0)
+                    .layer_count(layers)
+                    .level_count(1),
+            )
+            .image(image);
+
+        let image_view = unsafe { vulkan.device().create_image_view(&create_info, None) }
+            .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
+
+        unsafe {
+            try_name(
+                vulkan,
+                image_view,
+                &format!("Swapchain Image View {image_index}"),
+            );
+        };
+
+        Ok(image_view)
     }
 }
 
 impl fmt::Debug for Swapchain {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Swapchain")
-            .field("max_frames_in_flight", &self.max_frames_in_flight)
-            .field("extent", &self.extent)
-            .field("format", &self.format)
-            .field("composite_alpha", &self.composite_alpha)
-            .field("present_mode", &self.present_mode)
+            .field("info", &self.info)
             .finish_non_exhaustive()
     }
 }

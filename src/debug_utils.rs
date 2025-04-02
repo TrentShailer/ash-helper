@@ -135,7 +135,7 @@ pub struct DebugUtils {
     /// The Debug Utils Messenger.
     pub messenger: vk::DebugUtilsMessengerEXT,
 
-    /// The Debug Utils Devoce.
+    /// The Debug Utils Device.
     pub device: ext::debug_utils::Device,
 }
 

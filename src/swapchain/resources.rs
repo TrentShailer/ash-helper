@@ -6,11 +6,11 @@ use crate::{LabelledVkResult, VkError, VulkanContext, try_name};
 #[derive(Clone, Copy)]
 pub struct FrameResources {
     /// Semaphore that signals when the image is available.
-    pub image_available_semaphore: vk::Semaphore,
+    pub acquire_semaphore: vk::Semaphore,
     /// Semaphore that signals when the render has finished.
-    pub render_finished_semaphore: vk::Semaphore,
-    /// Fence that signals when these resources are no longer in flight.
-    pub in_flight_fence: vk::Fence,
+    pub render_semaphore: vk::Semaphore,
+    /// Fence that signals when the render has finished.
+    pub render_fence: vk::Fence,
     /// This frame's command pool.
     pub command_pool: vk::CommandPool,
     /// That command pool's command buffer.
@@ -21,20 +21,14 @@ impl FrameResources {
     /// Create new resources for a given frame.
     pub unsafe fn new<Vulkan: VulkanContext>(
         vulkan: &Vulkan,
-        index: u32,
+        index: usize,
     ) -> LabelledVkResult<Self> {
         let image_available_semaphore = {
             let create_info = vk::SemaphoreCreateInfo::default();
 
             let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
-            unsafe {
-                try_name(
-                    vulkan,
-                    semaphore,
-                    &format!("Image Available Semaphore {index}"),
-                )
-            };
+            unsafe { try_name(vulkan, semaphore, &format!("Acquire Semaphore {index}")) };
 
             semaphore
         };
@@ -44,13 +38,7 @@ impl FrameResources {
 
             let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
                 .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
-            unsafe {
-                try_name(
-                    vulkan,
-                    semaphore,
-                    &format!("Render Finished Semaphore {index}"),
-                )
-            };
+            unsafe { try_name(vulkan, semaphore, &format!("Render Semaphore {index}")) };
 
             semaphore
         };
@@ -106,9 +94,9 @@ impl FrameResources {
         };
 
         Ok(Self {
-            image_available_semaphore,
-            render_finished_semaphore,
-            in_flight_fence: fence,
+            acquire_semaphore: image_available_semaphore,
+            render_semaphore: render_finished_semaphore,
+            render_fence: fence,
             command_pool,
             command_buffer,
         })
@@ -117,11 +105,9 @@ impl FrameResources {
     /// Destroy the Vulkan resources for this frame.
     pub unsafe fn destroy<Vk: VulkanContext>(&self, vk: &Vk) {
         unsafe {
-            vk.device().destroy_fence(self.in_flight_fence, None);
-            vk.device()
-                .destroy_semaphore(self.image_available_semaphore, None);
-            vk.device()
-                .destroy_semaphore(self.render_finished_semaphore, None);
+            vk.device().destroy_fence(self.render_fence, None);
+            vk.device().destroy_semaphore(self.acquire_semaphore, None);
+            vk.device().destroy_semaphore(self.render_semaphore, None);
             vk.device().destroy_command_pool(self.command_pool, None);
         }
     }
