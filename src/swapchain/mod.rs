@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{fmt, slice};
 
 pub use info::SwapchainInfo;
 pub use preferences::SwapchainPreferences;
@@ -36,8 +36,7 @@ pub struct Swapchain {
     /// The resources for each frame.
     pub resources: Vec<FrameResources>,
 
-    /// The image indexes this swapchain has presented. The implementation assumes any acquired
-    /// image is presented.
+    /// The image indicies this swapchain has presented.
     pub presented_images: Vec<u32>,
 }
 
@@ -141,6 +140,56 @@ impl Swapchain {
 
             presented_images: vec![],
         })
+    }
+
+    /// Queue a present operation for this swapchain.
+    pub fn queue_present<'m, Surface, Queue>(
+        &mut self,
+        surface: &Surface,
+        image_index: u32,
+        wait_semaphore: vk::Semaphore,
+        queue: Queue,
+    ) -> LabelledVkResult<()>
+    where
+        Surface: SurfaceContext,
+        Queue: Into<MaybeMutex<'m, vk::Queue>>,
+    {
+        // Track the present history for this swapchain
+        if !self.presented_images.contains(&image_index) {
+            self.presented_images.push(image_index);
+        }
+
+        // Queue present
+        let result = {
+            let present_info = vk::PresentInfoKHR::default()
+                .image_indices(slice::from_ref(&image_index))
+                .swapchains(slice::from_ref(&self.swapchain))
+                .wait_semaphores(slice::from_ref(&wait_semaphore));
+
+            let (queue, _queue_guard) = queue.into().lock();
+            unsafe {
+                surface
+                    .swapchain_device()
+                    .queue_present(queue, &present_info)
+            }
+        };
+
+        // Flag swapchain as needing to rebuild.
+        let suboptimal = match result {
+            Ok(suboptimal) => suboptimal,
+
+            Err(e) => match e {
+                vk::Result::ERROR_OUT_OF_DATE_KHR => true,
+
+                e => return Err(VkError::new(e, "vkQueuePresentKHR")),
+            },
+        };
+
+        if suboptimal {
+            self.needs_to_rebuild = true;
+        }
+
+        Ok(())
     }
 
     /// Converts a physical position to a position in Vulkan space.

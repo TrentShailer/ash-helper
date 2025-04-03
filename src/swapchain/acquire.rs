@@ -12,6 +12,7 @@ impl Swapchain {
         &mut self,
         vulkan: &Vulkan,
         surface: &Surface,
+        acquire_fence: vk::Fence,
     ) -> LabelledVkResult<Option<(u32, vk::Image, vk::ImageView, FrameResources)>>
     where
         Vulkan: VulkanContext,
@@ -27,7 +28,7 @@ impl Swapchain {
                     self.swapchain,
                     u64::MAX,
                     resources.acquire_semaphore,
-                    vk::Fence::null(),
+                    acquire_fence,
                 )
             };
 
@@ -75,11 +76,6 @@ impl Swapchain {
                 self.views[image_index as usize]
             }
         };
-
-        // Track the present history for this swapchain
-        if !self.presented_images.contains(&image_index) {
-            self.presented_images.push(image_index);
-        }
 
         Ok(Some((image_index, image, view, resources)))
     }
