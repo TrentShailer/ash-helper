@@ -45,13 +45,19 @@ impl Swapchain {
     pub unsafe fn new<Vulkan, Surface>(
         vulkan: &Vulkan,
         surface: &Surface,
-        old_resources: Option<(Vec<FrameResources>, usize)>,
+        old_swapchain: Option<&mut Self>,
         swapchain_create_info: vk::SwapchainCreateInfoKHR<'_>,
     ) -> LabelledVkResult<Self>
     where
         Vulkan: VulkanContext,
         Surface: SurfaceContext,
     {
+        let swapchain_create_info = if let Some(swapchain) = old_swapchain.as_ref() {
+            swapchain_create_info.old_swapchain(swapchain.swapchain)
+        } else {
+            swapchain_create_info
+        };
+
         // Create swapchain
         let swapchain = unsafe {
             surface
@@ -99,9 +105,9 @@ impl Swapchain {
 
         // Create frame resources
         let (resources, next_resources) = {
-            let existing_count = old_resources
+            let existing_count = old_swapchain
                 .as_ref()
-                .map(|(resources, _)| resources.len())
+                .map(|swapchain| swapchain.resources.len())
                 .unwrap_or(0);
 
             let new_resources = if image_count > existing_count {
@@ -112,10 +118,11 @@ impl Swapchain {
                 vec![]
             };
 
-            match old_resources {
-                Some((mut resources, next_resources)) => {
+            match old_swapchain {
+                Some(swapchain) => {
+                    let mut resources: Vec<_> = swapchain.resources.drain(..).collect();
                     resources.extend(new_resources.iter());
-                    (resources, next_resources)
+                    (resources, swapchain.next_resources)
                 }
                 None => (new_resources, 0),
             }

@@ -77,13 +77,22 @@ impl Swapchain {
             }
         };
 
+        self.next_resources = (self.next_resources + 1) % self.resources.len();
+
+        unsafe {
+            vulkan
+                .device()
+                .reset_fences(slice::from_ref(&resources.render_fence))
+                .map_err(|e| VkError::new(e, "vkResetFences"))?;
+        }
+
         Ok(Some((image_index, image, view, resources)))
     }
 
     /// Returns a copy of the next resources in the circular buffer. Waits for the resources to be
     /// free.
-    pub fn next_resources<Vulkan: VulkanContext>(
-        &mut self,
+    fn next_resources<Vulkan: VulkanContext>(
+        &self,
         vulkan: &Vulkan,
     ) -> LabelledVkResult<FrameResources> {
         let resources = self.resources[self.next_resources];
@@ -94,8 +103,6 @@ impl Swapchain {
                 .wait_for_fences(slice::from_ref(&resources.render_fence), true, u64::MAX)
                 .map_err(|e| VkError::new(e, "vkWaitForFences"))?;
         };
-
-        self.next_resources = (self.next_resources + 1) % self.resources.len();
 
         Ok(resources)
     }
