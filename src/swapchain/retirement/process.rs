@@ -14,9 +14,9 @@ impl SwapchainRetirement {
         let mut signaled_fences = {
             let mut signaled_fences = vec![];
 
-            let mut end_index = self.garbage_fences.len();
+            let mut length = self.garbage_fences.len();
             let mut index = 0;
-            while index <= end_index {
+            while index < length {
                 let is_signaled = unsafe {
                     fences_are_signaled(vulkan, slice::from_ref(&self.garbage_fences[index]))
                         .map_err(|e| VkError::new(e, "vkWaitForFences"))?
@@ -28,8 +28,8 @@ impl SwapchainRetirement {
                     let fence = self.garbage_fences.swap_remove(index);
                     signaled_fences.push(fence);
 
-                    // An item has been removed from the vec, thus the end index should be decremented.
-                    end_index -= 1;
+                    // An item has been removed from the vec, thus the length should be decremented.
+                    length -= 1;
                 } else {
                     // Move to the next item
                     index += 1;
@@ -39,12 +39,13 @@ impl SwapchainRetirement {
             signaled_fences
         };
 
-        // Reset the signaled fences
-        unsafe { vulkan.device().reset_fences(&signaled_fences) }
-            .map_err(|e| VkError::new(e, "vkResetFences"))?;
+        // Reset the signaled fences and move to free fences
+        if !signaled_fences.is_empty() {
+            unsafe { vulkan.device().reset_fences(&signaled_fences) }
+                .map_err(|e| VkError::new(e, "vkResetFences"))?;
 
-        // Move the fences to free fences
-        self.free_fences.append(&mut signaled_fences);
+            self.free_fences.append(&mut signaled_fences);
+        }
 
         Ok(())
     }
@@ -59,17 +60,17 @@ impl SwapchainRetirement {
         let completed_acquisitions = {
             let mut completed_acquisitions = vec![];
 
-            let mut end_index = self.tracked_acquisitions.len();
+            let mut length = self.tracked_acquisitions.len();
             let mut index = 0;
-            while index <= end_index {
+            while index < length {
                 if self.tracked_acquisitions[index].is_acquired(vulkan)? {
                     // The current index has been replaced with the last item, thus current index
                     // should not change.
                     let acquisition = self.tracked_acquisitions.swap_remove(index);
                     completed_acquisitions.push(acquisition);
 
-                    // An item has been removed from the vec, thus the end index should be decremented.
-                    end_index -= 1;
+                    // An item has been removed from the vec, thus the length should be decremented.
+                    length -= 1;
                 } else {
                     // Move to the next item
                     index += 1;
@@ -97,12 +98,13 @@ impl SwapchainRetirement {
                 .map(|acquisition| acquisition.fence)
                 .collect();
 
-            // Reset the fences
-            unsafe { vulkan.device().reset_fences(&fences) }
-                .map_err(|e| VkError::new(e, "vkResetFences"))?;
+            // Reset and recycle the fences
+            if !fences.is_empty() {
+                unsafe { vulkan.device().reset_fences(&fences) }
+                    .map_err(|e| VkError::new(e, "vkResetFences"))?;
 
-            // Recycle the fences
-            self.free_fences.append(&mut fences);
+                self.free_fences.append(&mut fences);
+            }
         }
 
         Ok(())
@@ -122,17 +124,17 @@ impl SwapchainRetirement {
         let safe_swapchains = {
             let mut safe_swapchains = vec![];
 
-            let mut end_index = self.retired_swapchains.len();
+            let mut length = self.retired_swapchains.len();
             let mut index = 0;
-            while index <= end_index {
+            while index < length {
                 if self.retired_swapchains[index].presented_images.is_empty() {
                     // The current index has been replaced with the last item, thus current index
                     // should not change.
                     let swapchain = self.retired_swapchains.swap_remove(index);
                     safe_swapchains.push(swapchain);
 
-                    // An item has been removed from the vec, thus the end index should be decremented.
-                    end_index -= 1;
+                    // An item has been removed from the vec, thus the length should be decremented.
+                    length -= 1;
                 } else {
                     // Move to the next item
                     index += 1;
@@ -144,7 +146,7 @@ impl SwapchainRetirement {
 
         // Destroy the swapchains
         safe_swapchains
-            .into_iter()
+            .iter()
             .for_each(|swapchain| unsafe { swapchain.destroy(vulkan, surface) });
 
         Ok(())

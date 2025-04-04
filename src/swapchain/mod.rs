@@ -1,5 +1,6 @@
 use core::{fmt, slice};
 
+pub use acquire::Frame;
 pub use info::SwapchainInfo;
 pub use preferences::SwapchainPreferences;
 pub use resources::FrameResources;
@@ -36,6 +37,8 @@ pub struct Swapchain {
     /// The resources for each frame.
     pub resources: Vec<FrameResources>,
 
+    /// The image indicies this swapchain has acquired.
+    pub acquired_images: Vec<u32>,
     /// The image indicies this swapchain has presented.
     pub presented_images: Vec<u32>,
 }
@@ -141,6 +144,7 @@ impl Swapchain {
             next_resources,
             resources,
 
+            acquired_images: vec![],
             presented_images: vec![],
         })
     }

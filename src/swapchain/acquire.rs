@@ -6,6 +6,20 @@ use crate::{LabelledVkResult, SurfaceContext, VkError, VulkanContext};
 
 use super::{FrameResources, Swapchain};
 
+/// Resources of an acquired frame.
+pub struct Frame {
+    /// The image index acquired.
+    pub image_index: u32,
+    /// The image acquired.
+    pub image: vk::Image,
+    /// The image view for the image.
+    pub view: vk::ImageView,
+    /// The frame resources for the frame.
+    pub resources: FrameResources,
+    /// If this image has been previously acquired.
+    pub previously_acquired: bool,
+}
+
 impl Swapchain {
     /// Acquire the next image from this swapchain and the resources to use.
     pub fn acquire_next_image<Vulkan, Surface>(
@@ -13,7 +27,7 @@ impl Swapchain {
         vulkan: &Vulkan,
         surface: &Surface,
         acquire_fence: vk::Fence,
-    ) -> LabelledVkResult<Option<(u32, vk::Image, vk::ImageView, FrameResources)>>
+    ) -> LabelledVkResult<Option<Frame>>
     where
         Vulkan: VulkanContext,
         Surface: SurfaceContext,
@@ -86,7 +100,21 @@ impl Swapchain {
                 .map_err(|e| VkError::new(e, "vkResetFences"))?;
         }
 
-        Ok(Some((image_index, image, view, resources)))
+        let previously_acquired = self.acquired_images.contains(&image_index);
+
+        let frame = Frame {
+            image_index,
+            image,
+            view,
+            resources,
+            previously_acquired,
+        };
+
+        if !previously_acquired {
+            self.acquired_images.push(image_index);
+        }
+
+        Ok(Some(frame))
     }
 
     /// Returns a copy of the next resources in the circular buffer. Waits for the resources to be

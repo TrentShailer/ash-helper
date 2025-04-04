@@ -8,9 +8,6 @@ pub struct SwapchainPreferences {
     /// The preferred number of images available.
     pub image_count: u32,
 
-    /// The preferred image layout after creation.
-    pub image_layout: vk::ImageLayout,
-
     /// The preferred swapchain format.
     pub format: Option<Vec<vk::Format>>,
 
@@ -28,14 +25,6 @@ impl SwapchainPreferences {
     /// Sets the preferred number of images for the swapchain to have.
     pub fn image_count(mut self, frames: u32) -> Self {
         self.image_count = frames;
-        self
-    }
-
-    /// Sets the image layout preference.
-    ///
-    /// Must be one of the layouts supported by [cmd_transition_image](crate::cmd_transition_image).
-    pub fn image_layout(mut self, image_layout: vk::ImageLayout) -> Self {
-        self.image_layout = image_layout;
         self
     }
 
@@ -139,25 +128,23 @@ impl SwapchainPreferences {
 
         // Select the present mode
         let present_mode = unsafe {
-            surface
+            let supported_present_modes = surface
                 .surface_instance()
                 .get_physical_device_surface_present_modes(
                     vulkan.physical_device(),
                     surface.surface(),
                 )
-                .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfacePresentModesKHR"))?
-                .into_iter()
-                .min_by_key(|present_mode| {
-                    let Some(preferences) = self.present_mode.as_ref() else {
-                        return 0;
-                    };
+                .map_err(|e| VkError::new(e, "vkGetPhysicalDeviceSurfacePresentModesKHR"))?;
 
-                    preferences
-                        .iter()
-                        .position(|preference| preference == present_mode)
-                        .unwrap_or(usize::MAX)
-                })
-                .unwrap()
+            match self.present_mode.as_ref() {
+                Some(preferences) => preferences
+                    .iter()
+                    .find(|&&preference| supported_present_modes.contains(&preference))
+                    .copied()
+                    .unwrap_or(vk::PresentModeKHR::FIFO),
+
+                None => vk::PresentModeKHR::FIFO,
+            }
         };
 
         // Select the composite alpha
