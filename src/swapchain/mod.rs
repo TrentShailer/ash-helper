@@ -42,9 +42,7 @@ pub struct Swapchain {
 
 impl Swapchain {
     /// Create a new swapchain for the surface with preferences.
-    ///
-    /// Images are created with the `COLOR_ATTACHMENT` usage.
-    pub unsafe fn new<'m, Vulkan, Surface, Pool, Queue>(
+    pub unsafe fn new<Vulkan, Surface>(
         vulkan: &Vulkan,
         surface: &Surface,
         old_resources: Option<(Vec<FrameResources>, usize)>,
@@ -53,8 +51,6 @@ impl Swapchain {
     where
         Vulkan: VulkanContext,
         Surface: SurfaceContext,
-        Queue: Into<MaybeMutex<'m, vk::Queue>>,
-        Pool: Into<MaybeMutex<'m, vk::CommandPool>>,
     {
         // Create swapchain
         let swapchain = unsafe {
