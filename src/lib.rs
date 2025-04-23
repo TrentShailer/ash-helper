@@ -3,6 +3,7 @@
 extern crate alloc;
 
 pub use allocation::*;
+pub use cleanup::*;
 pub use commands::*;
 pub use debug_utils::*;
 pub use fence::*;
@@ -14,6 +15,7 @@ pub use swapchain::*;
 pub use vulkan_context::*;
 
 mod allocation;
+mod cleanup;
 mod commands;
 mod debug_utils;
 mod fence;
