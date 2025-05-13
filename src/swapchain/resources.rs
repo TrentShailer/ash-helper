@@ -103,12 +103,18 @@ impl FrameResources {
     }
 
     /// Destroy the Vulkan resources for this frame.
-    pub unsafe fn destroy<Vk: VulkanContext>(&self, vk: &Vk) {
+    pub unsafe fn destroy<Vulkan: VulkanContext>(&self, vulkan: &Vulkan) {
         unsafe {
-            vk.device().destroy_fence(self.render_fence, None);
-            vk.device().destroy_semaphore(self.acquire_semaphore, None);
-            vk.device().destroy_semaphore(self.render_semaphore, None);
-            vk.device().destroy_command_pool(self.command_pool, None);
+            vulkan.device().destroy_fence(self.render_fence, None);
+            vulkan
+                .device()
+                .destroy_semaphore(self.acquire_semaphore, None);
+            vulkan
+                .device()
+                .destroy_semaphore(self.render_semaphore, None);
+            vulkan
+                .device()
+                .destroy_command_pool(self.command_pool, None);
         }
     }
 }

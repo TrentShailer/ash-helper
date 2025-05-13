@@ -222,6 +222,10 @@ impl Swapchain {
         for &image_view in &self.views {
             unsafe { vulkan.device().destroy_image_view(image_view, None) };
         }
+
+        for resource in &self.resources {
+            unsafe { resource.destroy(vulkan) };
+        }
     }
 
     /// Creates the view for a swapchain image. `DEFERRED_MEMORY_ALLOCATION` requires this is called
