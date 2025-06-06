@@ -1,19 +1,16 @@
 [package]
-name = "ash-helper"
-description = "Helper functions for working with ash"
-version = "0.5.0"
-edition = "2024"
-rust-version = "1.85"
-license = "MIT OR Apache-2.0"
 authors = ["Trent Shailer"]
+description = "Helper functions for working with ash"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+name = "ash-helper"
+rust-version = "1.85"
+version = "0.6.0"
 
 [dependencies]
 thiserror = { version = "2", default-features = false }
 
-ash = { version = "0.38", default-features = false, features = [
-    "std",
-    "debug",
-] }
+ash = { version = "0.38", default-features = false, features = ["debug", "std"] }
 
 parking_lot = "0.12"
 
@@ -25,23 +22,23 @@ vp-ash = { git = "https://github.com/TrentShailer/vulkan-profiles-ash.git", bran
 vulkan-profiles = ["vp-ash"]
 
 [lints.rust]
-"missing_docs" = "warn"
-"unused_qualifications" = "warn"
-"rust_2018_idioms" = "warn"
 "deprecated_in_future" = "warn"
+"missing_docs" = "warn"
+"rust_2018_idioms" = "warn"
+"unused_qualifications" = "warn"
 
 [lints.clippy]
 "alloc_instead_of_core" = "warn"
 "std_instead_of_alloc" = "warn"
 "std_instead_of_core" = "warn"
 
-"use_self" = "warn"
 "cast_lossless" = "warn"
-"unnecessary_self_imports" = "warn"
 "inconsistent_struct_constructor" = "warn"
+"unnecessary_self_imports" = "warn"
+"use_self" = "warn"
 
-"default_trait_access" = "warn"
 "clone_on_ref_ptr" = "warn"
+"default_trait_access" = "warn"
 "todo" = "warn"
 
 "missing_safety_doc" = "allow"
