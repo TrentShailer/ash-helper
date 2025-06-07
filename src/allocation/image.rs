@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::{VkError, VulkanContext, try_name};
+use crate::{VK_GLOBAL_ALLOCATOR, VkError, VulkanContext, try_name};
 
 use super::{AllocationError, memory::allocate_image_memory};
 
@@ -12,8 +12,12 @@ pub unsafe fn allocate_image<Vulkan: VulkanContext>(
     label: &str,
 ) -> Result<(vk::Image, vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
     let image = {
-        let image = unsafe { vulkan.device().create_image(create_info, None) }
-            .map_err(|e| VkError::new(e, "vkCreateImage"))?;
+        let image = unsafe {
+            vulkan
+                .device()
+                .create_image(create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkCreateImage"))?;
 
         unsafe { try_name(vulkan, image, &format!("{label} Image")) };
 

@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::{VkError, VulkanContext};
+use crate::{VK_GLOBAL_ALLOCATOR, VkError, VulkanContext};
 
 use super::AllocationError;
 
@@ -47,8 +47,12 @@ pub unsafe fn allocate_buffer_memory<Vulkan: VulkanContext>(
             allocate_info
         };
 
-        unsafe { vulkan.device().allocate_memory(&allocate_info, None) }
-            .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
+        unsafe {
+            vulkan
+                .device()
+                .allocate_memory(&allocate_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
     };
 
     Ok((memory, memory_requirements))
@@ -97,8 +101,12 @@ pub unsafe fn allocate_image_memory<Vulkan: VulkanContext>(
             allocate_info
         };
 
-        unsafe { vulkan.device().allocate_memory(&allocate_info, None) }
-            .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
+        unsafe {
+            vulkan
+                .device()
+                .allocate_memory(&allocate_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkAllocateMemory"))?
     };
 
     Ok((memory, memory_requirements))

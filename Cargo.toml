@@ -5,7 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 name = "ash-helper"
 rust-version = "1.85"
-version = "0.6.0"
+version = "0.7.0"
 
 [dependencies]
 thiserror = { version = "2", default-features = false }
@@ -19,6 +19,7 @@ tracing = "0.1"
 vp-ash = { git = "https://github.com/TrentShailer/vulkan-profiles-ash.git", branch = "vulkan-sdk-1.4.304", optional = true, default-features = false }
 
 [features]
+vk-global-allocator = []
 vulkan-profiles = ["vp-ash"]
 
 [lints.rust]

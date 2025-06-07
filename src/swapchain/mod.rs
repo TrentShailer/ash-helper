@@ -9,7 +9,8 @@ pub use retirement::SwapchainRetirement;
 use ash::vk;
 
 use crate::{
-    LabelledVkResult, MaybeMutex, SurfaceContext, VkError, VulkanContext, try_name, try_name_all,
+    LabelledVkResult, MaybeMutex, SurfaceContext, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext,
+    try_name, try_name_all,
 };
 
 mod acquire;
@@ -37,9 +38,9 @@ pub struct Swapchain {
     /// The resources for each frame.
     pub resources: Vec<FrameResources>,
 
-    /// The image indicies this swapchain has acquired.
+    /// The image indices this swapchain has acquired.
     pub acquired_images: Vec<u32>,
-    /// The image indicies this swapchain has presented.
+    /// The image indices this swapchain has presented.
     pub presented_images: Vec<u32>,
 }
 
@@ -65,7 +66,7 @@ impl Swapchain {
         let swapchain = unsafe {
             surface
                 .swapchain_device()
-                .create_swapchain(&swapchain_create_info, None)
+                .create_swapchain(&swapchain_create_info, VK_GLOBAL_ALLOCATOR.as_deref())
                 .map_err(|e| VkError::new(e, "vkCreateSwapchainKHR"))?
         };
         unsafe { try_name(vulkan, swapchain, "Swapchain") };
@@ -216,11 +217,15 @@ impl Swapchain {
         unsafe {
             surface
                 .swapchain_device()
-                .destroy_swapchain(self.swapchain, None)
+                .destroy_swapchain(self.swapchain, VK_GLOBAL_ALLOCATOR.as_deref())
         };
 
         for &image_view in &self.views {
-            unsafe { vulkan.device().destroy_image_view(image_view, None) };
+            unsafe {
+                vulkan
+                    .device()
+                    .destroy_image_view(image_view, VK_GLOBAL_ALLOCATOR.as_deref())
+            };
         }
 
         for resource in &self.resources {
@@ -253,8 +258,12 @@ impl Swapchain {
             )
             .image(image);
 
-        let image_view = unsafe { vulkan.device().create_image_view(&create_info, None) }
-            .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
+        let image_view = unsafe {
+            vulkan
+                .device()
+                .create_image_view(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkCreateImageView"))?;
 
         unsafe {
             try_name(
