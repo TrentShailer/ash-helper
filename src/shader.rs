@@ -1,6 +1,6 @@
 use ash::{ext, util::read_spv, vk};
 
-use crate::{Context, LabelledVkResult, VkError, VulkanContext, try_name};
+use crate::{Context, LabelledVkResult, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext, try_name};
 
 /// Creates a shader module from some SPV bytes.
 ///
@@ -17,8 +17,12 @@ pub unsafe fn create_shader_module_from_spv<Vulkan: VulkanContext>(
     let shader_code = read_spv(&mut cursor).expect("Failed to read spv");
 
     let shader_info = vk::ShaderModuleCreateInfo::default().code(&shader_code);
-    let shader_module = unsafe { vulkan.device().create_shader_module(&shader_info, None) }
-        .map_err(|e| VkError::new(e, "vkCreateShaderModule"))?;
+    let shader_module = unsafe {
+        vulkan
+            .device()
+            .create_shader_module(&shader_info, VK_GLOBAL_ALLOCATOR.as_deref())
+    }
+    .map_err(|e| VkError::new(e, "vkCreateShaderModule"))?;
 
     Ok(shader_module)
 }
@@ -69,18 +73,19 @@ where
     let device: &ext::shader_object::Device = unsafe { vulkan.context() };
 
     // Create the shaders
-    let shaders = match unsafe { device.create_shaders(create_infos, None) } {
-        Ok(shaders) => shaders,
+    let shaders =
+        match unsafe { device.create_shaders(create_infos, VK_GLOBAL_ALLOCATOR.as_deref()) } {
+            Ok(shaders) => shaders,
 
-        Err((shaders, error)) => {
-            // Cleanup any created shaders
-            shaders
-                .into_iter()
-                .for_each(|shader| unsafe { device.destroy_shader(shader, None) });
+            Err((shaders, error)) => {
+                // Cleanup any created shaders
+                shaders.into_iter().for_each(|shader| unsafe {
+                    device.destroy_shader(shader, VK_GLOBAL_ALLOCATOR.as_deref())
+                });
 
-            return Err(error);
-        }
-    };
+                return Err(error);
+            }
+        };
 
     // Name the shaders
     shaders.iter().enumerate().for_each(|(index, shader)| {

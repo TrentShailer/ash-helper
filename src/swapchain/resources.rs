@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::{LabelledVkResult, VkError, VulkanContext, try_name};
+use crate::{LabelledVkResult, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext, try_name};
 
 /// The resources for rendering and presenting an individual frame.
 #[derive(Clone, Copy)]
@@ -26,8 +26,12 @@ impl FrameResources {
         let image_available_semaphore = {
             let create_info = vk::SemaphoreCreateInfo::default();
 
-            let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
-                .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
+            let semaphore = unsafe {
+                vulkan
+                    .device()
+                    .create_semaphore(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+            }
+            .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
             unsafe { try_name(vulkan, semaphore, &format!("Acquire Semaphore {index}")) };
 
             semaphore
@@ -36,8 +40,12 @@ impl FrameResources {
         let render_finished_semaphore = {
             let create_info = vk::SemaphoreCreateInfo::default();
 
-            let semaphore = unsafe { vulkan.device().create_semaphore(&create_info, None) }
-                .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
+            let semaphore = unsafe {
+                vulkan
+                    .device()
+                    .create_semaphore(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+            }
+            .map_err(|e| VkError::new(e, "vkCreateSemaphore"))?;
             unsafe { try_name(vulkan, semaphore, &format!("Render Semaphore {index}")) };
 
             semaphore
@@ -47,8 +55,12 @@ impl FrameResources {
             let create_info = vk::CommandPoolCreateInfo::default()
                 .queue_family_index(vulkan.queue_family_index());
 
-            let command_pool = unsafe { vulkan.device().create_command_pool(&create_info, None) }
-                .map_err(|e| VkError::new(e, "vkCreateCommandPool"))?;
+            let command_pool = unsafe {
+                vulkan
+                    .device()
+                    .create_command_pool(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+            }
+            .map_err(|e| VkError::new(e, "vkCreateCommandPool"))?;
             unsafe {
                 try_name(
                     vulkan,
@@ -83,8 +95,12 @@ impl FrameResources {
         let fence = {
             let create_info = vk::FenceCreateInfo::default().flags(vk::FenceCreateFlags::SIGNALED);
 
-            let fence = unsafe { vulkan.device().create_fence(&create_info, None) }
-                .map_err(|e| VkError::new(e, "vkCreateFence"))?;
+            let fence = unsafe {
+                vulkan
+                    .device()
+                    .create_fence(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+            }
+            .map_err(|e| VkError::new(e, "vkCreateFence"))?;
 
             unsafe {
                 try_name(vulkan, fence, &format!("Render Fence {index}"));
@@ -105,16 +121,18 @@ impl FrameResources {
     /// Destroy the Vulkan resources for this frame.
     pub unsafe fn destroy<Vulkan: VulkanContext>(&self, vulkan: &Vulkan) {
         unsafe {
-            vulkan.device().destroy_fence(self.render_fence, None);
             vulkan
                 .device()
-                .destroy_semaphore(self.acquire_semaphore, None);
+                .destroy_fence(self.render_fence, VK_GLOBAL_ALLOCATOR.as_deref());
             vulkan
                 .device()
-                .destroy_semaphore(self.render_semaphore, None);
+                .destroy_semaphore(self.acquire_semaphore, VK_GLOBAL_ALLOCATOR.as_deref());
             vulkan
                 .device()
-                .destroy_command_pool(self.command_pool, None);
+                .destroy_semaphore(self.render_semaphore, VK_GLOBAL_ALLOCATOR.as_deref());
+            vulkan
+                .device()
+                .destroy_command_pool(self.command_pool, VK_GLOBAL_ALLOCATOR.as_deref());
         }
     }
 }

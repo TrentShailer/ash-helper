@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::VulkanContext;
+use crate::{VK_GLOBAL_ALLOCATOR, VulkanContext};
 
 /// Destroy a Vulkan object.
 #[allow(private_bounds)]
@@ -10,29 +10,49 @@ pub unsafe fn vk_destroy<'a, Vulkan: VulkanContext, T: Into<Target<'a>>>(
 ) {
     unsafe {
         match target.into() {
-            Target::Image(image) => vulkan.device().destroy_image(image, None),
-            Target::DescriptorLayouts(descriptor_set_layouts) => descriptor_set_layouts
-                .iter()
-                .for_each(|layout| vulkan.device().destroy_descriptor_set_layout(*layout, None)),
-            Target::ImageView(image_view) => vulkan.device().destroy_image_view(image_view, None),
-            Target::Sampler(sampler) => vulkan.device().destroy_sampler(sampler, None),
-            Target::Buffer(buffer) => vulkan.device().destroy_buffer(buffer, None),
-            Target::DeviceMemory(device_memory) => vulkan.device().free_memory(device_memory, None),
+            Target::Image(image) => vulkan
+                .device()
+                .destroy_image(image, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::DescriptorLayouts(descriptor_set_layouts) => {
+                descriptor_set_layouts.iter().for_each(|layout| {
+                    vulkan
+                        .device()
+                        .destroy_descriptor_set_layout(*layout, VK_GLOBAL_ALLOCATOR.as_deref())
+                })
+            }
+            Target::ImageView(image_view) => vulkan
+                .device()
+                .destroy_image_view(image_view, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::Sampler(sampler) => vulkan
+                .device()
+                .destroy_sampler(sampler, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::Buffer(buffer) => vulkan
+                .device()
+                .destroy_buffer(buffer, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::DeviceMemory(device_memory) => vulkan
+                .device()
+                .free_memory(device_memory, VK_GLOBAL_ALLOCATOR.as_deref()),
             Target::DescriptorPool(descriptor_pool) => vulkan
                 .device()
-                .destroy_descriptor_pool(descriptor_pool, None),
+                .destroy_descriptor_pool(descriptor_pool, VK_GLOBAL_ALLOCATOR.as_deref()),
             Target::PipelineLayout(pipeline_layout) => vulkan
                 .device()
-                .destroy_pipeline_layout(pipeline_layout, None),
-            Target::Pipeline(pipeline) => vulkan.device().destroy_pipeline(pipeline, None),
-            Target::ShaderModule(shader_module) => {
-                vulkan.device().destroy_shader_module(shader_module, None)
-            }
-            Target::CommandPool(command_pool) => {
-                vulkan.device().destroy_command_pool(command_pool, None)
-            }
-            Target::Semaphore(semaphore) => vulkan.device().destroy_semaphore(semaphore, None),
-            Target::Fence(fence) => vulkan.device().destroy_fence(fence, None),
+                .destroy_pipeline_layout(pipeline_layout, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::Pipeline(pipeline) => vulkan
+                .device()
+                .destroy_pipeline(pipeline, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::ShaderModule(shader_module) => vulkan
+                .device()
+                .destroy_shader_module(shader_module, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::CommandPool(command_pool) => vulkan
+                .device()
+                .destroy_command_pool(command_pool, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::Semaphore(semaphore) => vulkan
+                .device()
+                .destroy_semaphore(semaphore, VK_GLOBAL_ALLOCATOR.as_deref()),
+            Target::Fence(fence) => vulkan
+                .device()
+                .destroy_fence(fence, VK_GLOBAL_ALLOCATOR.as_deref()),
         }
     }
 }

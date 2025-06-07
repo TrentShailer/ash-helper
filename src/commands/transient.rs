@@ -3,7 +3,7 @@ use core::slice;
 use ash::vk;
 
 use crate::{
-    LabelledVkResult, MaybeMutex, VkError, VulkanContext,
+    LabelledVkResult, MaybeMutex, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext,
     debug_utils::{queue_try_begin_label, queue_try_end_label, try_name},
 };
 
@@ -58,8 +58,12 @@ where
     let fence = {
         let fence_info = vk::FenceCreateInfo::default();
 
-        let fence = unsafe { vulkan.device().create_fence(&fence_info, None) }
-            .map_err(|e| VkError::new(e, "vkCreateFence"))?;
+        let fence = unsafe {
+            vulkan
+                .device()
+                .create_fence(&fence_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkCreateFence"))?;
 
         unsafe { try_name(vulkan, fence, label) };
 
@@ -99,7 +103,9 @@ where
 
     // Cleanup
     unsafe {
-        vulkan.device().destroy_fence(fence, None);
+        vulkan
+            .device()
+            .destroy_fence(fence, VK_GLOBAL_ALLOCATOR.as_deref());
 
         let (pool, _pool_guard) = maybe_mutex_pool.lock();
         vulkan

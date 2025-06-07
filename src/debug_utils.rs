@@ -3,7 +3,7 @@ use core::ffi::CStr;
 use ash::{ext, vk};
 use tracing::{debug, error, info, warn};
 
-use crate::{LabelledVkResult, VkError, VulkanContext};
+use crate::{LabelledVkResult, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext};
 
 /// https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkSetDebugUtilsObjectNameEXT.html
 pub unsafe fn try_name<Vulkan, H>(vulkan: &Vulkan, handle: H, name: &str)
@@ -163,8 +163,10 @@ impl DebugUtils {
 
         let instance = ext::debug_utils::Instance::new(entry, vk_instance);
 
-        let messenger = unsafe { instance.create_debug_utils_messenger(&debug_info, None) }
-            .map_err(|e| VkError::new(e, "vkCreateDebugUtilsMessengerEXT"))?;
+        let messenger = unsafe {
+            instance.create_debug_utils_messenger(&debug_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkCreateDebugUtilsMessengerEXT"))?;
 
         let device = ext::debug_utils::Device::new(vk_instance, vk_device);
 

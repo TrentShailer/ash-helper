@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::{VkError, VulkanContext, try_name};
+use crate::{VK_GLOBAL_ALLOCATOR, VkError, VulkanContext, try_name};
 
 use super::{AllocationError, memory::allocate_buffer_memory};
 
@@ -12,8 +12,12 @@ pub unsafe fn allocate_buffer<Vulkan: VulkanContext>(
     label: &str,
 ) -> Result<(vk::Buffer, vk::DeviceMemory, vk::MemoryRequirements), AllocationError> {
     let buffer = {
-        let buffer = unsafe { vulkan.device().create_buffer(create_info, None) }
-            .map_err(|e| VkError::new(e, "vkCreateBuffer"))?;
+        let buffer = unsafe {
+            vulkan
+                .device()
+                .create_buffer(create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+        }
+        .map_err(|e| VkError::new(e, "vkCreateBuffer"))?;
 
         unsafe { try_name(vulkan, buffer, &format!("{label} Buffer")) };
 

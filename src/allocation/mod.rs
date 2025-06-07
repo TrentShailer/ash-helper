@@ -1,4 +1,5 @@
 pub use buffer::allocate_buffer;
+pub use custom_allocator::VK_GLOBAL_ALLOCATOR;
 pub use image::allocate_image;
 pub use memory::{allocate_buffer_memory, allocate_image_memory, find_memorytype_index};
 pub use slice::{BufferAlignment, BufferUsageFlags};
@@ -7,6 +8,7 @@ use crate::VkError;
 use thiserror::Error;
 
 mod buffer;
+mod custom_allocator;
 mod image;
 mod memory;
 mod slice;

@@ -2,7 +2,9 @@ use acquisition::Acquisition;
 use ash::vk;
 use tracing::error;
 
-use crate::{LabelledVkResult, SurfaceContext, VkError, VulkanContext, try_name};
+use crate::{
+    LabelledVkResult, SurfaceContext, VK_GLOBAL_ALLOCATOR, VkError, VulkanContext, try_name,
+};
 
 use super::Swapchain;
 
@@ -106,8 +108,12 @@ impl SwapchainRetirement {
             None => {
                 let create_info = vk::FenceCreateInfo::default();
 
-                let fence = unsafe { vulkan.device().create_fence(&create_info, None) }
-                    .map_err(|e| VkError::new(e, "vkCreateFence"))?;
+                let fence = unsafe {
+                    vulkan
+                        .device()
+                        .create_fence(&create_info, VK_GLOBAL_ALLOCATOR.as_deref())
+                        .map_err(|e| VkError::new(e, "vkCreateFence"))?
+                };
 
                 unsafe {
                     try_name(
@@ -137,22 +143,28 @@ impl SwapchainRetirement {
         }
 
         // Destroy free fences
-        self.free_fences
-            .iter()
-            .for_each(|fence| unsafe { vulkan.device().destroy_fence(*fence, None) });
+        self.free_fences.iter().for_each(|fence| unsafe {
+            vulkan
+                .device()
+                .destroy_fence(*fence, VK_GLOBAL_ALLOCATOR.as_deref())
+        });
         self.free_fences.clear();
 
         // Destroy garbage fences
-        self.garbage_fences
-            .iter()
-            .for_each(|fence| unsafe { vulkan.device().destroy_fence(*fence, None) });
+        self.garbage_fences.iter().for_each(|fence| unsafe {
+            vulkan
+                .device()
+                .destroy_fence(*fence, VK_GLOBAL_ALLOCATOR.as_deref())
+        });
         self.garbage_fences.clear();
 
         // Destroy acquisition fences
         self.tracked_acquisitions
             .iter()
             .for_each(|acquisition| unsafe {
-                vulkan.device().destroy_fence(acquisition.fence, None)
+                vulkan
+                    .device()
+                    .destroy_fence(acquisition.fence, VK_GLOBAL_ALLOCATOR.as_deref())
             });
         self.tracked_acquisitions.clear();
 
