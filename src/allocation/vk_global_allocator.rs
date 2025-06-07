@@ -1,15 +1,23 @@
 #![allow(static_mut_refs)]
 
-/// Static reference to the Vulkan callbacks to the global allocator.
+#[cfg(feature = "vk-global-allocator")]
+pub use global_allocator::*;
 #[cfg(not(feature = "vk-global-allocator"))]
-pub static VK_GLOBAL_ALLOCATOR: Option<std::sync::LazyLock<ash::vk::AllocationCallbacks<'_>>> =
-    None;
+pub use not_global_allocator::*;
+
+#[cfg(not(feature = "vk-global-allocator"))]
+mod not_global_allocator {
+    /// Static reference to the Vulkan callbacks to the global allocator.
+    pub static VK_GLOBAL_ALLOCATOR: Option<std::sync::LazyLock<ash::vk::AllocationCallbacks<'_>>> =
+        None;
+    /// Returns the memory usage tracked by the Vulkan allocator callbacks.
+    pub fn get_memory_usage() -> usize {
+        0
+    }
+}
 
 #[cfg(feature = "vk-global-allocator")]
-pub use vk_global_allocator::VK_GLOBAL_ALLOCATOR;
-
-#[cfg(feature = "vk-global-allocator")]
-mod vk_global_allocator {
+mod global_allocator {
     use alloc::collections::BTreeMap;
     use ash::vk;
     use core::alloc::Layout;
@@ -17,14 +25,21 @@ mod vk_global_allocator {
 
     /// Static reference to the Vulkan callbacks to the global allocator.
     pub static VK_GLOBAL_ALLOCATOR: Option<std::sync::LazyLock<vk::AllocationCallbacks<'_>>> =
-        Some(std::sync::LazyLock::new(vk_global_allocator));
+        Some(std::sync::LazyLock::new(create_vk_global_allocator));
 
     static mut LAYOUT_MAP: std::sync::LazyLock<Mutex<BTreeMap<*mut u8, Layout>>> =
         std::sync::LazyLock::new(|| Mutex::new(BTreeMap::<*mut u8, Layout>::new()));
 
+    /// Returns the memory usage tracked by the Vulkan allocator callbacks.
+    pub fn get_memory_usage() -> usize {
+        unsafe { LAYOUT_MAP.lock() }
+            .values()
+            .fold(0, |total, layout| total + layout.size())
+    }
+
     /// # SAFETY
     /// This is **INCREDIBLY** unsafe, probably not a good idea to use this.
-    fn vk_global_allocator() -> vk::AllocationCallbacks<'static> {
+    fn create_vk_global_allocator() -> vk::AllocationCallbacks<'static> {
         vk::AllocationCallbacks::default()
             .pfn_allocation(Some(allocation))
             .pfn_free(Some(free))
@@ -76,7 +91,7 @@ mod vk_global_allocator {
             None => panic!("Leaked memory with address: {p_original:?}"),
         };
 
-        let pointer = unsafe { alloc::alloc::realloc(p_original as *mut u8, layout, size) }; // TODO should the layout passed here be the new or old layout
+        let pointer = unsafe { alloc::alloc::realloc(p_original as *mut u8, layout, size) };
         let new_layout = unsafe { Layout::from_size_align_unchecked(size, alignment) };
         unsafe { LAYOUT_MAP.lock().insert(pointer, new_layout) };
 
